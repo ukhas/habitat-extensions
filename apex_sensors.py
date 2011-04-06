@@ -29,8 +29,6 @@ Example string:
 
 """
 
-import math
-
 __all__ = ["pressure", "batteryvoltage", "ird", "light", "rssi"]
 
 def _check_length(n, data):
@@ -45,7 +43,7 @@ def pressure(config, data):
 
     _check_length(3, data)
     data = int(data, 16)
-    return int(math.round((float(625 * data) / 2304.0) + (950.0/9.0)))
+    return int(round((float(625 * data) / 2304.0) + (950.0/9.0)))
 
 def batteryvoltage(config, data):
     # Battery: hhh fixed length hexadecimal
@@ -87,4 +85,4 @@ def light(config, data):
 def rssi(config, data):
     _check_length(2, data)
     data = int(value, 16)
-    return int(math.round(float(100 * data) / 256.0))
+    return int(round(float(100 * data) / 256.0))
