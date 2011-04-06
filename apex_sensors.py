@@ -70,7 +70,6 @@ def light(config, data):
               ("mult", 1)]
     new_data = {}
     for (name, size) in values:
-        size = v[1]
         value = data[:size]
         data = data[size:]
         value = int(value, 16)
@@ -84,5 +83,5 @@ def light(config, data):
 
 def rssi(config, data):
     _check_length(2, data)
-    data = int(value, 16)
+    data = int(data, 16)
     return int(round(float(100 * data) / 256.0))
