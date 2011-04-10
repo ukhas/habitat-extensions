@@ -75,7 +75,7 @@ def light(config, data):
         value = int(value, 16)
         new_data[name] = value
 
-    for m in ["red", "green", "blue"]:
+    for m in ["red", "green", "blue", "white"]:
         new_data[m] *= new_data["mult"]
     del new_data["mult"]
 
