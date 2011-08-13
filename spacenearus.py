@@ -1,4 +1,4 @@
-# Copyright 2011 (C) Adam Greig
+# Copyright 2011 (C) Adam Greig, Daniel Richman
 #
 # This file is part of habitat.
 #
@@ -16,30 +16,45 @@
 # along with habitat.  If not, see <http://www.gnu.org/licenses/>.
 
 """
-A sink to upload parsed telemetry data to the spacenear.us tracker
+A daemon that uploads parsed telemetry data to the spacenear.us tracker
 """
 
 from urllib import urlencode
 from urllib2 import urlopen
 import logging
-from habitat.message_server import SimpleSink, Message
+import couchdbkit
 
 __all__ = ["SpaceNearUsSink"]
 logger = logging.getLogger("habitat.spacenearus")
 
-class SpaceNearUsSink(SimpleSink):
+class SpaceNearUs:
     """
-    The SpaceNearUsSink forwards on parsed telemetry to the spacenear.us
+    The SpaceNearUs daemon forwards on parsed telemetry to the spacenear.us
     tracker (or a copy of it) to use as an alternative frontend.
     """
-    def setup(self):
-        """We only care for some message types"""
-        self.add_type(Message.TELEM)
+    def __init__(self, config):
+        self.config = config
+        self.couch_server = couchdbkit.Server(self.config["couch_uri"])
+        self.db = self.couch_server[self.config["couch_db"]]
 
-    def message(self, message):
+    def run(self):
         """
-        Take an incoming message and submit it to spacenear.us
+        Start a continuous connection to CouchDB's _changes feed, watching for
+        new unparsed telemetry.
         """
+        update_seq = self.db.info()["update_seq"]
+
+        consumer = couchdbkit.Consumer(self.db)
+        consumer.wait(self.couch_callback, filter="habitat/parsed",
+                      since=update_seq, heartbeat=1000, include_docs=True)
+
+    def couch_callback(self, result):
+        """
+        Take a payload_telemetry doc and submit it to spacenear.us
+        """
+
+        doc = result["doc"]
+
         fields = {
             "vehicle": "payload",
             "lat": "latitude",
@@ -48,14 +63,38 @@ class SpaceNearUsSink(SimpleSink):
             "heading": "heading",
             "speed": "speed"
         }
-        data = {"callsign": message.source.callsign, "pass": "aurora"}
+
+        data = doc["data"]
+
+        # XXX: Crude hack!
+        last_callsign = doc["receivers"].keys()[-1]
+        params = {"callsign": last_callsign, "pass": "aurora"}
+
         timestr = "{hour:02d}{minute:02d}{second:02d}"
-        data["time"] = timestr.format(**message.data["time"])
-        for field in fields:
+        params["time"] = timestr.format(**data["time"])
+
+        for (tgt, src) in fields.items():
             try:
-                data[field] = message.data[fields[field]]
+                params[tgt] = data[src]
             except KeyError:
                 continue
+
         qs = urlencode(data, True)
         logger.debug("encoded data: " + qs)
-        u = urlopen("http://habhub.org/tracker/track.php?" + qs)
+        u = urlopen("{tracker}?{qs}".format(tracker=self.config["tracker"],
+                                            qs=qs))
+
+if __name__ == "__main__":
+    # TODO: once the parser's main and stuff is refactored, use that
+    config = {
+        "couch_uri": "http://localhost:5984/",
+        "couch_db": "habitat",
+        "tracker": "http://habhub.org/tracker/track.php"
+    }
+
+    logging.basicConfig(level=logging.DEBUG)
+    # See habitat.main
+    logging.getLogger("restkit").setLevel(logging.WARNING)
+    logger.debug("Starting up")
+    s = SpaceNearUs(config)
+    s.run()
