@@ -147,12 +147,12 @@ HTML_DESCRIPTION = """
 </font>
 """
 
-def listener_map(item):
+def listener_map(couch_db, item):
     (callsign, data) = item
 
     try:
-        info = data["info"]["data"]
-        telemetry = data["telemetry"]["data"]
+        info = couch_db[data["info"]]["data"]
+        telemetry = couch_db[data["telemetry"]]["data"]
 
         tdiff = int(time.time()) - data["latest"]
         tdiff_hours = tdiff / 3600
@@ -182,15 +182,15 @@ def receivers():
 
     last_week = int(time.time() - (7 * 24 * 60 * 60))
     startkey = [last_week, None]
-    o = {"startkey": startkey, "include_docs": True}
+    o = {"startkey": startkey}
 
     info = couch_db.view("habitat/listener_info", **o)
 
     for result in info:
         (time_uploaded, callsign) = result["key"]
-        doc = result["doc"]
+        doc_id = result["id"]
 
-        l = {"info": doc, "latest": time_uploaded}
+        l = {"info": doc_id, "latest": time_uploaded}
 
         if callsign not in listeners:
             listeners[callsign] = l
@@ -201,9 +201,9 @@ def receivers():
 
     for result in telemetry:
         (time_uploaded, callsign) = result["key"]
-        doc = result["doc"]
+        doc_id = result["id"]
 
-        l = {"telemetry": doc, "latest": time_uploaded}
+        l = {"telemetry": doc_id, "latest": time_uploaded}
 
         if callsign not in listeners:
             listeners[callsign] = l
@@ -212,7 +212,7 @@ def receivers():
 
     # Covert dict to list. Filter, map, then remove any that failed the map.
     listeners = filter(listener_filter, listeners.items())
-    listeners = map(listener_map, listeners)
+    listeners = map(lambda x: listener_map(couch_db, x), listeners)
     listeners = filter(None, listeners)
 
     response = flask.make_response(json.dumps(listeners))
