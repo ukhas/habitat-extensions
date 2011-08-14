@@ -22,6 +22,7 @@ Connect to CouchDB, read in all the payload configs using payload_config view, t
 
 import sys
 import couchdbkit
+import subprocess
 import elementtree.ElementTree as ET
 import xml.dom.minidom
 
@@ -65,7 +66,12 @@ class PayloadsXML(object):
     def __str__(self):
         string = ET.tostring(self.tree, "utf-8")
         reparsed = xml.dom.minidom.parseString(string)
-        return reparsed.toprettyxml(indent="  ", encoding="utf-8")
+        xml_string = reparsed.toxml("utf-8")
+        p = subprocess.Popen(("tidy", "-xml", "-indent", "-quiet"),
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        p.stdin.write(xml_string)
+        p.stdin.close()
+        return p.stdout.read()
 
 class PayloadXML(object):
     type_map = {
