@@ -93,7 +93,7 @@ type_map = {
     "time": "stdtelem.time",
     "decimal": "base.ascii_float",
     "custom": "base.ascii_string",
-    "custom_data": "base.ascii_string"
+    "custom_data": "base.string"
 }
 
 server = couchdbkit.Server(sys.argv[2])

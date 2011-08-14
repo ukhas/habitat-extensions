@@ -74,7 +74,7 @@ class PayloadXML(object):
         "stdtelem.coordinate": "decimal",
         "base.ascii_int": "integer",
         "base.ascii_float": "decimal",
-        "base.ascii_string": "char"
+        "base.string": "char"
     }
     def __init__(self, doc):
         self.doc = doc
