@@ -113,6 +113,7 @@ for field in tree.getiterator("field"):
             new_field["format"] = field.findtext("format")
         else:
             new_field["format"] = "dd.dddd"
+        new_field["type"] = "stdtelem.coordinate"
 
     doc["payloads"][callsign]["sentence"]["fields"].append(new_field)
 
