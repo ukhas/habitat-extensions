@@ -28,6 +28,7 @@ import couchdbkit
 from xml.sax.saxutils import escape as htmlescape
 from habitat import uploader
 from . import config
+from . import couch_to_xml
 
 # Monkey patch float precision
 json.encoder.FLOAT_REPR = lambda o: format(o, '.5f')
@@ -125,6 +126,21 @@ def listener_telemetry():
 
     return "OK"
 
+@app.route("/allpayloads")
+def allpayloads():
+    a = [config.COUCH_SETTINGS["couch_uri"], config.COUCH_SETTINGS["couch_db"]]
+    response = flask.make_response(couch_to_xml.dump_xml(*a))
+    set_expires(response, 10 * 60)
+    return response
+
+def set_expires(response, diff):
+    # 10 minute expires:
+    expires = time.time() + diff
+    expires = time.strftime("%a, %d %b %Y %H:%M:%S +0000",
+                            time.gmtime(expires))
+
+    response.headers["Expires"] = expires
+
 def listener_filter(item):
     (callsign, data) = item
 
@@ -215,12 +231,7 @@ def receivers():
     listeners = map(lambda x: listener_map(couch_db, x), listeners)
     listeners = filter(None, listeners)
 
-    # 10 minute expires:
-    expires = time.time() + (10 * 60)
-    expires = time.strftime("%a, %d %b %Y %H:%M:%S +0000",
-                            time.gmtime(expires))
-
     response = flask.make_response(json.dumps(listeners))
+    set_expires(response, 10 * 60)
     response.headers["Content-type"] = "application/json"
-    response.headers["Expires"] = expires
     return response
