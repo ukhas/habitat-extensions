@@ -32,10 +32,10 @@ class SpaceNearUs:
     The SpaceNearUs daemon forwards on parsed telemetry to the spacenear.us
     tracker (or a copy of it) to use as an alternative frontend.
     """
-    def __init__(self, config):
-        self.config = config
-        self.couch_server = couchdbkit.Server(self.config["couch_uri"])
-        self.db = self.couch_server[self.config["couch_db"]]
+    def __init__(self, couch_settings, tracker):
+        self.tracker = tracker
+        server = couchdbkit.Server(couch_settings["couch_uri"])
+        self.db = server[couch_settings["couch_db"]]
 
     def run(self):
         """
@@ -134,22 +134,18 @@ class SpaceNearUs:
                 continue
 
     def _post_to_track(self, params):
-        tracker = self.config["tracker"]
         qs = urlencode(params, True)
         logger.debug("encoded data: " + qs)
-        u = urlopen(tracker.format(qs))
+        u = urlopen(self.tracker.format(qs))
 
-if __name__ == "__main__":
-    # TODO: once the parser's main and stuff is refactored, use that
-    config = {
-        "couch_uri": "http://localhost:5984/",
-        "couch_db": "habitat",
-        "tracker": "http://habhub.org/tracker/track.php?{0}"
-    }
-
+def main(config):
     logging.basicConfig(level=logging.DEBUG)
     # See habitat.main
     logging.getLogger("restkit").setLevel(logging.WARNING)
     logger.debug("Starting up")
-    s = SpaceNearUs(config)
+    s = SpaceNearUs(config.COUCH_SETTINGS, config.TRACKER)
     s.run()
+
+if __name__ == "__main__":
+    from . import config
+    main(config)

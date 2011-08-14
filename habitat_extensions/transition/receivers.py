@@ -16,11 +16,9 @@
 # along with habitat.  If not, see <http://www.gnu.org/licenses/>.
 
 """
-A flask web app that provides a list of listeners online in the last 24
-hours for spacenearus.
+Provides a list of listeners online in the last 24 hours for spacenearus.
 """
 
-import flask
 import couchdbkit
 import time
 import json
@@ -29,13 +27,6 @@ from xml.sax.saxutils import escape as htmlescape
 # Monkey patch float precision
 from json import encoder
 encoder.FLOAT_REPR = lambda o: format(o, '.5f')
-
-app = flask.Flask("habitat_extensions.spacenearus_receivers")
-
-couch_settings = {
-    "couch_uri": "http://localhost:5984",
-    "couch_db": "habitat"
-}
 
 couch_server = couchdbkit.Server(couch_settings["couch_uri"])
 couch_db = couch_server[couch_settings["couch_db"]]
@@ -87,8 +78,10 @@ def listener_map(item):
         raise
         return None
 
-@app.route("/")
-def receivers():
+def receivers(couch_settings):
+    couch_server = couchdbkit.Server(couch_settings["couch_uri"])
+    couch_db = couch_server[couch_settings["couch_db"]]
+
     listeners = {}
 
     last_week = int(time.time() - (7 * 24 * 60 * 60))
@@ -126,9 +119,4 @@ def receivers():
     listeners = map(listener_map, listeners)
     listeners = filter(None, listeners)
 
-    response = flask.make_response(json.dumps(listeners))
-    response.headers["Content-type"] = "application/json"
-    return response
-
-if __name__ == "__main__":
-    app.run()
+    return json.dumps(listeners)
