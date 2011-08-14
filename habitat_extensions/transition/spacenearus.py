@@ -23,9 +23,10 @@ from urllib import urlencode
 from urllib2 import urlopen
 import logging
 import couchdbkit
+from . import config
 
 __all__ = ["SpaceNearUsSink"]
-logger = logging.getLogger("habitat.spacenearus")
+logger = logging.getLogger("habitat_extensions.transition.spacenearus")
 
 class SpaceNearUs:
     """
@@ -45,7 +46,7 @@ class SpaceNearUs:
         update_seq = self.db.info()["update_seq"]
 
         consumer = couchdbkit.Consumer(self.db)
-        consumer.wait(self.couch_callback, filter="habitat/parsed",
+        consumer.wait(self.couch_callback, filter="habitat/spacenear",
                       since=update_seq, heartbeat=1000, include_docs=True)
 
     def couch_callback(self, result):
@@ -138,14 +139,10 @@ class SpaceNearUs:
         logger.debug("encoded data: " + qs)
         u = urlopen(self.tracker.format(qs))
 
-def main(config):
+def main():
     logging.basicConfig(level=logging.DEBUG)
     # See habitat.main
     logging.getLogger("restkit").setLevel(logging.WARNING)
     logger.debug("Starting up")
     s = SpaceNearUs(config.COUCH_SETTINGS, config.TRACKER)
     s.run()
-
-if __name__ == "__main__":
-    from . import config
-    main(config)

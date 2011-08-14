@@ -24,6 +24,7 @@ import flask
 import base64
 import json
 import time
+import couchdbkit
 from xml.sax.saxutils import escape as htmlescape
 from habitat import uploader
 from . import config
