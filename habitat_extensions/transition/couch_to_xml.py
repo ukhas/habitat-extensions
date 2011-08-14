@@ -38,7 +38,6 @@ def dump_xml(couch_uri, couch_db):
     docs = get_flight_docs(couch_uri, couch_db)
     payloads = PayloadsXML()
     for doc in docs:
-        payloads.add_doc(doc)
         try:
             payloads.add_doc(doc)
         except Exception as e:
@@ -112,7 +111,16 @@ class PayloadXML(object):
         coding.text = str(self.payload["telemetry"].get("encoding", "ascii-8"))
         baud.text = str(self.payload["telemetry"].get("baud", 50))
         parity.text = str(self.payload["telemetry"].get("parity", "none"))
-        stop.text = str(self.payload["telemetry"].get("stop", 1.0))
+        payload_stop = float(self.payload["telemetry"].get("stop", "1"))
+        # dl-fldigi requires exactly '1', '1.5' or '2'.
+        if payload_stop == 1.0:
+            stop.text = "1"
+        elif payload_stop == 1.5:
+            stop.text = "1.5"
+        elif payload_stop == 2.0:
+            stop.text = "2"
+        else:
+            stop.text = "1"
 
     def _add_sentence(self):
         self.sentence = ET.SubElement(self.transmission, 'sentence')
