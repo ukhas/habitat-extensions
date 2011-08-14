@@ -53,8 +53,17 @@ class SpaceNearUs:
         Take a payload_telemetry doc and submit it to spacenear.us
         """
 
+        doc_id = result["id"]
         doc = result["doc"]
 
+        logger.debug("Considering doc " + doc_id)
+
+        if doc["type"] == "payload_telemetry":
+            self.payload_telemetry(doc)
+        elif doc["type"] == "listener_telemetry":
+            self.listener_telemetry(doc)
+
+    def payload_telemetry(self, doc):
         fields = {
             "vehicle": "payload",
             "lat": "latitude",
@@ -64,32 +73,78 @@ class SpaceNearUs:
             "speed": "speed"
         }
 
+        if "data" not in doc:
+            logger.warning("ignoring doc due to no data")
+            return
+
         data = doc["data"]
 
+        if not isinstance(data, dict):
+            logger.warning("ignoring doc where data is not a dict")
+            return
+
         # XXX: Crude hack!
-        last_callsign = doc["receivers"].keys()[-1]
-        params = {"callsign": last_callsign, "pass": "aurora"}
+        receivers = doc["receivers"].items()
+        receivers.sort(key=lambda x: x[1]["time_uploaded"])
+        last_callsign = receivers[-1][0]
+
+        params = {}
 
         timestr = "{hour:02d}{minute:02d}{second:02d}"
         params["time"] = timestr.format(**data["time"])
 
+        self._copy_fields(fields, data, params)
+        params["pass"] = "aurora"
+        self._post_to_track(params)
+
+    def listener_telemetry(self, doc):
+        fields = {
+            "vehicle": "callsign",
+            "lat": "latitude",
+            "lon": "longitude"
+        }
+
+        if "data" not in doc or "callsign" not in doc:
+            return
+
+        data = doc["data"]
+        callsign = data["callsign"]
+
+        if "chase" not in callsign:
+            return
+
+        if not isinstance(data, dict):
+            logger.warning("ignoring doc where data is not a dict")
+            return
+
+        params = {}
+
+        timestr = "{hour:02d}:{minute:02d}:{second:02d}"
+        params["time"] = timestr.format(**data["time"])
+
+        self._copy_fields(fields, data, params)
+        params["pass"] = "aurora"
+        self._post_to_track(params)
+
+    def _copy_fields(self, fields, data, params):
         for (tgt, src) in fields.items():
             try:
                 params[tgt] = data[src]
             except KeyError:
                 continue
 
-        qs = urlencode(data, True)
+    def _post_to_track(self, params):
+        tracker = self.config["tracker"]
+        qs = urlencode(params, True)
         logger.debug("encoded data: " + qs)
-        u = urlopen("{tracker}?{qs}".format(tracker=self.config["tracker"],
-                                            qs=qs))
+        u = urlopen(tracker.format(qs))
 
 if __name__ == "__main__":
     # TODO: once the parser's main and stuff is refactored, use that
     config = {
         "couch_uri": "http://localhost:5984/",
         "couch_db": "habitat",
-        "tracker": "http://habhub.org/tracker/track.php"
+        "tracker": "http://habhub.org/tracker/track.php?{0}"
     }
 
     logging.basicConfig(level=logging.DEBUG)
