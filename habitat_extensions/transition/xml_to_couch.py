@@ -45,6 +45,15 @@ if not callsign:
     print "Could not find a callsign in the document."
     sys.exit(1)
 
+frequency = tree.findtext("frequency", default="434.075.000")
+frequency = '.'.join(frequency.split('.')[0:2])
+mode = tree.findtext("mode", default="usb").upper()
+shift = int(tree.findtext("txtype/rtty/shift", default="300"))
+encoding = tree.findtext("txtype/rtty/coding", default="ascii-8")
+baud = int(tree.findtext("txtype/rtty/baud", default="50"))
+parity = tree.findtext("txtype/rtty/parity", default="none")
+stop = float(tree.findtext("txtype/rtty/stop", default="1"))
+
 doc = {
     "type": "flight",
     "name": os.path.basename(sys.argv[1]).split(".")[0],
@@ -56,14 +65,16 @@ doc = {
     "payloads": {
         callsign : {
             "radio": {
-                "frequency": tree.findtext("frequency"),
-                "mode": tree.findtext("mode")
+                "frequency": frequency,
+                "mode": mode
             },
             "telemetry": {
                 "modulation": "rtty",
-                "shift": tree.findtext("txtype/rtty/shift"),
-                "encoding": tree.findtext("txtype/rtty/coding"),
-                "baud": tree.findtext("txtype/rtty/baud")
+                "shift": shift,
+                "encoding": encoding,
+                "baud": baud,
+                "parity": parity,
+                "stop": stop
             },
             "sentence": {
                 "protocol": "UKHAS",
