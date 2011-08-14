@@ -28,6 +28,7 @@ import couchdbkit
 from xml.sax.saxutils import escape as htmlescape
 from habitat import uploader
 from . import config
+from . import couch_to_xml
 
 # Monkey patch float precision
 json.encoder.FLOAT_REPR = lambda o: format(o, '.5f')
@@ -124,6 +125,10 @@ def listener_telemetry():
     u.listener_telemetry(data, time_created)
 
     return "OK"
+
+@app.route("/allpayloads")
+def allpayloads():
+    return couch_to_xml.dump_xml("http://habitat.habhub.org", "habitat")
 
 def listener_filter(item):
     (callsign, data) = item
