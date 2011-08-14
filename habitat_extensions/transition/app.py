@@ -215,6 +215,12 @@ def receivers():
     listeners = map(lambda x: listener_map(couch_db, x), listeners)
     listeners = filter(None, listeners)
 
+    # 10 minute expires:
+    expires = time.time() + (10 * 60)
+    expires = time.strftime("%a, %d %b %Y %H:%M:%S +0000",
+                            time.gmtime(expires))
+
     response = flask.make_response(json.dumps(listeners))
     response.headers["Content-type"] = "application/json"
+    response.headers["Expires"] = expires
     return response
