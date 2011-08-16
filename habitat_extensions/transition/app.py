@@ -196,8 +196,8 @@ def receivers():
 
     listeners = {}
 
-    last_week = int(time.time() - (7 * 24 * 60 * 60))
-    startkey = [last_week, None]
+    yesterday = int(time.time() - (24 * 60 * 60))
+    startkey = [yesterday, None]
     o = {"startkey": startkey}
 
     info = couch_db.view("habitat/listener_info", **o)
