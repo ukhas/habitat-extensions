@@ -95,6 +95,7 @@ class SpaceNearUs:
         params["time"] = timestr.format(**data["time"])
 
         self._copy_fields(fields, data, params)
+        params["callsign"] = last_callsign
         params["pass"] = "aurora"
         self._post_to_track(params)
 
