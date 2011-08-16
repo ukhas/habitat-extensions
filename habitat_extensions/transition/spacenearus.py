@@ -67,11 +67,14 @@ class SpaceNearUs:
     def payload_telemetry(self, doc):
         fields = {
             "vehicle": "payload",
+            "time": "time",
             "lat": "latitude",
             "lon": "longitude",
             "alt": "altitude",
             "heading": "heading",
-            "speed": "speed"
+            "speed": "speed",
+            "temp_inside": "temp_int",
+            "seq": "count"
         }
 
         if "data" not in doc:
