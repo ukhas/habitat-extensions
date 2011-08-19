@@ -111,6 +111,9 @@ for field in tree.getiterator("field"):
     if field.findtext("dbfield") in ("latitude", "longitude"):
         if field.findtext("format"):
             new_field["format"] = field.findtext("format")
+
+            if new_field["format"] == "dddmm.mm":
+                new_field["format"] = "ddmm.mm"
         else:
             new_field["format"] = "dd.dddd"
         new_field["type"] = "stdtelem.coordinate"
