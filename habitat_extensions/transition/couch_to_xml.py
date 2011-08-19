@@ -106,18 +106,35 @@ class PayloadXML(object):
         timings.text = "continuous"
 
     def _add_txtype(self):
+        dominoex_settings = None
+
+        if isinstance(self.payload["telemetry"], list):
+            for settings in self.payload["telemetry"]:
+                if settings["modulation"] == "rtty":
+                    rtty_settings = settings
+                elif settings["modulation"] == "dominoex":
+                    dominoex_settings = settings
+        else:
+            rtty_settings = self.payload["telemetry"]
+
         txtype = ET.SubElement(self.transmission, 'txtype')
+
+        if dominoex_settings:
+            dominoex = ET.SubElement(txtype, 'dominoex')
+            dominoex.text = str(dominoex_settings["type"])
+
         rtty = ET.SubElement(txtype, 'rtty')
         shift = ET.SubElement(rtty, 'shift')
         coding = ET.SubElement(rtty, 'coding')
         baud = ET.SubElement(rtty, 'baud')
         parity = ET.SubElement(rtty, 'parity')
         stop = ET.SubElement(rtty, 'stop')
-        shift.text = str(self.payload["telemetry"].get("shift", 300))
-        coding.text = str(self.payload["telemetry"].get("encoding", "ascii-8"))
-        baud.text = str(self.payload["telemetry"].get("baud", 50))
-        parity.text = str(self.payload["telemetry"].get("parity", "none"))
-        payload_stop = float(self.payload["telemetry"].get("stop", "1"))
+
+        shift.text = str(rtty_settings.get("shift", 300))
+        coding.text = str(rtty_settings.get("encoding", "ascii-8"))
+        baud.text = str(rtty_settings.get("baud", 50))
+        parity.text = str(rtty_settings.get("parity", "none"))
+        payload_stop = float(rtty_settings.get("stop", "1"))
         # dl-fldigi requires exactly '1', '1.5' or '2'.
         if payload_stop == 1.0:
             stop.text = "1"
