@@ -5,6 +5,7 @@
 #include <string>
 #include <memory>
 #include <stdexcept>
+#include <sstream>
 
 using namespace std;
 
@@ -34,6 +35,16 @@ MutexLock::~MutexLock()
 {
     pthread_mutex_unlock(&(m.mutex));
 }
+
+static string http_response_string(long r)
+{
+    stringstream ss;
+    ss << "EZ::HTTPResponse: HTTP " << r;
+    return ss.str();
+}
+
+HTTPResponse::HTTPResponse(long r)
+    : runtime_error(http_response_string(r)), response_code(r) {}
 
 cURL::cURL()
 {

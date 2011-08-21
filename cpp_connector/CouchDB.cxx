@@ -117,7 +117,7 @@ void Database::save_doc(Json::Value &doc)
         /* Catch HTTP 409 Resource Conflict */
 
         if (e.response_code != 409)
-            throw e;
+            throw;
 
         throw Conflict(doc_id);
     }

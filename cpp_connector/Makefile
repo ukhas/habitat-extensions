@@ -4,7 +4,7 @@
 CFLAGS = -O2 -Wall -Werror -pedantic
 LIBS = -ljsoncpp -lcurl -lpthread
 headers = CouchDB.h EZ.h Uploader.h
-cxxfiles = CouchDB.o EZ.o Uploader.o main.o
+cxxfiles = CouchDB.o EZ.o Uploader.o test_main.o
 binary = cpp_connector
 
 CXXFLAGS = $(CFLAGS)

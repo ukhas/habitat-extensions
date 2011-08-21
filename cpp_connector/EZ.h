@@ -91,9 +91,7 @@ public:
 
 class HTTPResponse : public runtime_error
 {
-    HTTPResponse(long r)
-        : runtime_error("EZ::HTTPResponse: " + r), response_code(r) {};
-
+    HTTPResponse(long r);
     friend class cURL;
 
 public:

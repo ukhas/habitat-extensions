@@ -47,7 +47,7 @@ public:
              const string &couch_db="habitat",
              int max_merge_attempts=20);
     ~Uploader() {};
-    string payload_telemetry(const string &string,
+    string payload_telemetry(const string &data,
                              const Json::Value &metadata=Json::Value::null,
                              int time_created=-1);
     string listener_telemetry(const Json::Value &data, int time_created=-1);
