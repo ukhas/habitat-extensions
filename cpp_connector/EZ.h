@@ -21,10 +21,10 @@ public:
 
 class MutexLock
 {
-    Mutex *m;
+    Mutex &m;
 
 public:
-    MutexLock(Mutex *_m);
+    MutexLock(Mutex &_m);
     ~MutexLock();
 };
 
@@ -33,11 +33,20 @@ class cURL
     Mutex mutex;
     CURL *curl;
 
+    /* You need to hold the mutex to use these four functions */
+    void reset();
+    string *perform(const string &url);
+    template<typename T> void setopt(CURLoption option, T paramater);
+    void setopt(CURLoption option, void *paramater);
+    void setopt(CURLoption option, long parameter);
+
 public:
     cURL();
     ~cURL();
     static string *escape(const string &s);
-    string *ez(const string &url, const string &data="", int post=0);
+    string *get(const string &url);
+    string *post(const string &url, const string &data);
+    string *put(const string &url, const string &data);
 };
 
 class cURLGlobal
@@ -45,6 +54,17 @@ class cURLGlobal
 public:
     cURLGlobal() { curl_global_init(CURL_GLOBAL_ALL); };
     ~cURLGlobal() { curl_global_cleanup(); };
+};
+
+class cURLslist
+{
+    struct curl_slist *slist;
+
+public:
+    cURLslist() { slist = NULL; };
+    void append(const char *s) { curl_slist_append(slist, s); };
+    ~cURLslist() { curl_slist_free_all(slist); };
+    const struct curl_slist *get() { return slist; };
 };
 
 class cURLError

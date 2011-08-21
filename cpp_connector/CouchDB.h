@@ -29,20 +29,22 @@ public:
     ~Server() {};
 };
 
+class DocumentSaver;
+
 class Database
 {
     Server &server;
     string url;
     friend class Server;
 
+
 public:
     Database(Server &server, string &db);
     ~Database() {};
 
-    const Json::Value &operator[](const char *doc_id) const;
-    Json::Value &operator[](const char *doc_id);
-    const Json::Value &operator[](const string doc_id) const;
-    Json::Value &operator[](const string doc_id);
+    void save_doc(Json::Value &doc);
+    Json::Value *get_doc(const string &doc_id);
+    Json::Value *operator[](const string &doc_id);
 };
 
 } /* namespace CouchDB */
