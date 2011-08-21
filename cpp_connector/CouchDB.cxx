@@ -102,9 +102,8 @@ void Database::save_doc(Json::Value &doc)
 
     try
     {
-        response = server.curl.put(doc_url, json_doc, "application/json");
+        response = server.curl.put(doc_url, json_doc);
         response_destroyer.reset(response);
-        auto_ptr<string> response_destroyer(response);
     }
     catch (EZ::HTTPResponse e)
     {
@@ -124,11 +123,11 @@ void Database::save_doc(Json::Value &doc)
 
     response_destroyer.reset();
 
-    const Json::Value &new_id = &info["id"];
-    const Json::Value &new_rev = &info["rev"];
+    const Json::Value &new_id = info["id"];
+    const Json::Value &new_rev = info["rev"];
 
     if (!new_id.isString() || !new_rev.isString())
-        throw "Invalid server response (id and rev should be strings";
+        throw "Invalid server response (id and rev should be strings)";
 
     if (new_id.asString() != doc_id)
         throw "Server has gone insane";

@@ -111,7 +111,7 @@ string *cURL::get(const string &url)
     return cURL::perform(url);
 }
 
-string *cURL::post(const string &url, const string &data, const string &ctyp)
+string *cURL::post(const string &url, const string &data)
 {
     MutexLock lock(mutex);
 
@@ -119,20 +119,7 @@ string *cURL::post(const string &url, const string &data, const string &ctyp)
     setopt(CURLOPT_POSTFIELDS, data.c_str());
     setopt(CURLOPT_POSTFIELDSIZE, data.length());
 
-    if (ctyp.length())
-    {
-        cURLslist slist;
-        string header = "Content-type: " + ctyp;
-
-        slist.append(header.c_str());
-        setopt(CURLOPT_HTTPHEADER, slist.get());
-
-        return cURL::perform(url);
-    }
-    else
-    {
-        return cURL::perform(url);
-    }
+    return cURL::perform(url);
 }
 
 struct read_func_userdata
@@ -162,7 +149,7 @@ static size_t read_func(void *ptr, size_t size, size_t nmemb, void *userdata)
     return write;
 }
 
-string *cURL::put(const string &url, const string &data, const string &ctyp)
+string *cURL::put(const string &url, const string &data)
 {
     MutexLock lock(mutex);
 
@@ -177,20 +164,7 @@ string *cURL::put(const string &url, const string &data, const string &ctyp)
     setopt(CURLOPT_READDATA, &userdata);
     setopt(CURLOPT_INFILESIZE, data.length());
 
-    if (ctyp.length())
-    {
-        cURLslist slist;
-        string header = "Content-type: " + ctyp;
-
-        slist.append(header.c_str());
-        setopt(CURLOPT_HTTPHEADER, slist.get());
-
-        return cURL::perform(url);
-    }
-    else
-    {
-        return cURL::perform(url);
-    }
+    return cURL::perform(url);
 }
 
 static size_t write_func(char *data, size_t size, size_t nmemb, void *userdata)

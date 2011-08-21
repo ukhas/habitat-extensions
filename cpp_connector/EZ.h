@@ -45,8 +45,8 @@ public:
     ~cURL();
     static string *escape(const string &s);
     string *get(const string &url);
-    string *post(const string &url, const string &data, const string &ctyp="");
-    string *put(const string &url, const string &data, const string &ctyp="");
+    string *post(const string &url, const string &data);
+    string *put(const string &url, const string &data);
 };
 
 class cURLGlobal
