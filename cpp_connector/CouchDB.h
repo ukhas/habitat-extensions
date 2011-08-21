@@ -46,6 +46,18 @@ public:
     Database operator[](const string &n) { return Database(*this, n); }
 };
 
+class Conflict
+{
+    const string doc_id;
+
+public:
+    Conflict(const string &d) : doc_id(d) {};
+    ~Conflict() {};
+    const string &get_info() { return doc_id; };
+};
+
+ostream &operator<<(ostream &o, Conflict &r);
+
 } /* namespace CouchDB */
 
 #endif /* HABITATCPP_COUCHDB_H */

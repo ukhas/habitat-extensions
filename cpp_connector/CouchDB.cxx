@@ -20,6 +20,12 @@ Server::Server(const string &url) : url(url + url_sep_after(url)) {}
 Database::Database(Server &server, const string &db) 
     : server(server), url(server.url + db + url_sep_after(db)) {}
 
+ostream &operator<<(ostream &o, Conflict &r)
+{
+    o << r.get_info();
+    return o;
+}
+
 string Server::next_uuid()
 {
     EZ::MutexLock lock(uuid_cache_mutex);
@@ -91,8 +97,43 @@ void Database::save_doc(Json::Value &doc)
     doc_url.append(*doc_id_escaped);
     delete doc_id_escaped;
 
-    string *response = server.curl.put(doc_url, json_doc);
-    delete response;
+    string *response;
+    auto_ptr<string> response_destroyer;
+
+    try
+    {
+        response = server.curl.put(doc_url, json_doc, "application/json");
+        response_destroyer.reset(response);
+        auto_ptr<string> response_destroyer(response);
+    }
+    catch (EZ::HTTPResponse e)
+    {
+        /* Catch HTTP 409 Resource Conflict */
+
+        if (e.get_response_code() != 409)
+            throw e;
+
+        throw Conflict(doc_id);
+    }
+
+    Json::Reader reader;
+    Json::Value info;
+
+    if (!reader.parse(*response, info, false))
+        throw "JSON Parsing error";
+
+    response_destroyer.reset();
+
+    const Json::Value &new_id = &info["id"];
+    const Json::Value &new_rev = &info["rev"];
+
+    if (!new_id.isString() || !new_rev.isString())
+        throw "Invalid server response (id and rev should be strings";
+
+    if (new_id.asString() != doc_id)
+        throw "Server has gone insane";
+
+    doc["_rev"] = new_rev;
 }
 
 Json::Value *Database::get_doc(const string &doc_id)

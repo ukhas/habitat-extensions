@@ -36,6 +36,10 @@ int main(int argc, char **argv)
     {
         cout << "Threw HTTPResponse: " << e << endl;
     }
+    catch (CouchDB::Conflict e)
+    {
+        cout << "Threw Conflict: " << e << endl;
+    }
     catch (const char *e)
     {
         cout << "Threw char*: " << e << endl;
