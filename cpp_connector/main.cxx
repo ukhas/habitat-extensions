@@ -1,3 +1,5 @@
+/* Copyright 2011 (C) Daniel Richman. License: GNU GPL 3; see LICENSE. */
+
 #include <iostream>
 #include <memory>
 

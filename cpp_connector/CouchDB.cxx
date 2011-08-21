@@ -1,3 +1,5 @@
+/* Copyright 2011 (C) Daniel Richman. License: GNU GPL 3; see LICENSE. */
+
 #include "CouchDB.h"
 #include <curl/curl.h>
 #include <string>

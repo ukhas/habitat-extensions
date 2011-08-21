@@ -1,3 +1,5 @@
+/* Copyright 2011 (C) Daniel Richman. License: GNU GPL 3; see LICENSE. */
+
 #ifndef HABITATCPP_UPLOADER_H
 #define HABITATCPP_UPLOADER_H
 
@@ -6,7 +8,7 @@
 
 using namespace std;
 
-void uploader_initialise();
+namespace habitat {
 
 class Uploader
 {
@@ -27,5 +29,7 @@ public:
     string listener_info(string name, string location, string radio,
                          string antenna, int time_created=-1);
 };
+
+} /* namespace habitat */
 
 #endif
