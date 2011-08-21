@@ -15,8 +15,18 @@ int main(int argc, char **argv)
         CouchDB::Server s("http://localhost:5984/");
         CouchDB::Database d = s["habitat"];
 
-        auto_ptr<Json::Value> doc(d["2aebb7c97381d352bb2986a0b81fd826"]);
-        cout << *(doc.get()) << endl;
+        // auto_ptr<Json::Value> doc(d["2aebb7c97381d352bb2986a0b81fd826"]);
+        // cout << *(doc.get()) << endl;
+
+        Json::Value doc(Json::objectValue);
+        doc["testing"] = true;
+        doc["hello"] = Json::Value(Json::arrayValue);
+        doc["hello"].append("World");
+        doc["hello"].append("From");
+        doc["hello"].append("c++");
+
+        d.save_doc(doc);
+        cout << doc << endl;
     }
     catch (EZ::cURLError e)
     {

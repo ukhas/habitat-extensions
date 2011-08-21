@@ -143,7 +143,7 @@ static size_t read_func(void *ptr, size_t size, size_t nmemb, void *userdata)
     if (write)
     {
         source->data->copy(target, write, source->written);
-        source->written += max;
+        source->written += write;
     }
 
     return write;

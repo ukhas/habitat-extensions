@@ -70,20 +70,28 @@ void Database::save_doc(Json::Value &doc)
     Json::Value &id = doc["_id"];
 
     if (id.isNull())
-    {
         id = server.next_uuid();
-    }
-    else if (!id.isString())
-    {
+
+    if (!id.isString())
         throw "_id must be a string if set";
-    }
+
+    string doc_id = id.asString();
+
+    if (doc_id.length() == 0)
+        throw "_id cannot be an empty string";
+    if (doc_id[0] == '_')
+        throw "_id cannot start with _";
 
     Json::FastWriter writer;
-    string data = writer.write(doc);
+    string json_doc = writer.write(doc);
 
+    string doc_url(url);
+    string *doc_id_escaped = EZ::cURL::escape(doc_id);
 
+    doc_url.append(*doc_id_escaped);
+    delete doc_id_escaped;
 
-    /* TODO: save it. */
+    server.curl.put(doc_url, json_doc);
 }
 
 Json::Value *Database::get_doc(const string &doc_id)
