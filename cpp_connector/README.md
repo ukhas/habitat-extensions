@@ -6,15 +6,12 @@ Building dependencies
 
 You will need these dependencies:
 
-  - [JSON CPP](http://jsoncpp.sourceforge.net/)
+ - [JsonCpp](http://jsoncpp.sourceforge.net/)
+ - [libcURL](http://curl.haxx.se/)
 
-    $ sudo pip install scons
-    $ wget http://downloads.sourceforge.net/project/jsoncpp/jsoncpp/0.5.0/jsoncpp-src-0.5.0.tar.gz
-    $ tar xvf jsoncpp-src-0.5.0.tar.gz
-    $ cd jsoncpp-src-0.5.0/
-    $ scons platform=linux-gcc#
+Both build from source fairly easily, but the easiest way to acquire them for
+Ubuntu lucid is:
 
-  - [libcURL](http://curl.haxx.se/)
-
-    $ sudo aptitude install libcurl4-openssl-dev
+ - [JsonCpp (PPA)](https://launchpad.net/~danieljonathanrichman/+archive/ppa)
+ - [libcURL (apt)](http://packages.ubuntu.com/lucid/libcurl4-openssl-dev)
 
