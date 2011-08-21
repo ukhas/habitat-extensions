@@ -13,23 +13,7 @@ using namespace std;
 
 namespace CouchDB {
 
-class Server
-{
-    const string url;
-    vector<string> uuid_cache;
-    EZ::Mutex uuid_cache_mutex;
-    EZ::cURL curl;
-
-public: /* XXX testing */
-    string next_uuid();
-    friend class Database;
-
-public:
-    Server(const string &url);
-    ~Server() {};
-};
-
-class DocumentSaver;
+class Server;
 
 class Database
 {
@@ -37,14 +21,29 @@ class Database
     string url;
     friend class Server;
 
-
 public:
-    Database(Server &server, string &db);
+    Database(Server &server, const string &db);
     ~Database() {};
 
     void save_doc(Json::Value &doc);
     Json::Value *get_doc(const string &doc_id);
     Json::Value *operator[](const string &doc_id);
+};
+
+class Server
+{
+    const string url;
+    vector<string> uuid_cache;
+    EZ::Mutex uuid_cache_mutex;
+    EZ::cURL curl;
+
+    string next_uuid();
+    friend class Database;
+
+public:
+    Server(const string &url);
+    ~Server() {};
+    Database operator[](const string &n) { return Database(*this, n); }
 };
 
 } /* namespace CouchDB */

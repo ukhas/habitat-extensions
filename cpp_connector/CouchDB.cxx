@@ -17,7 +17,7 @@ static const char *url_sep_after(const string &s)
 }
 
 Server::Server(const string &url) : url(url + url_sep_after(url)) {}
-Database::Database(Server &server, string &db) 
+Database::Database(Server &server, const string &db) 
     : server(server), url(server.url + db + url_sep_after(db)) {}
 
 string Server::next_uuid()
@@ -77,6 +77,11 @@ void Database::save_doc(Json::Value &doc)
     {
         throw "_id must be a string if set";
     }
+
+    Json::FastWriter writer;
+    string data = writer.write(doc);
+
+
 
     /* TODO: save it. */
 }

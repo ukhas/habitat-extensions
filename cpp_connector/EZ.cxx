@@ -64,6 +64,12 @@ ostream &operator<<(ostream &o, cURLError &e)
     return o;
 }
 
+ostream &operator<<(ostream &o, HTTPResponse &r)
+{
+    o << "HTTP " << r.get_response_code();
+    return o;
+}
+
 string *cURL::escape(const string &s)
 {
     char *result;
@@ -183,9 +189,18 @@ string *cURL::perform(const string &url)
     setopt(CURLOPT_WRITEFUNCTION, write_func);
     setopt(CURLOPT_WRITEDATA, response.get());
 
-    CURLcode result = curl_easy_perform(curl);
+    CURLcode result;
+    result = curl_easy_perform(curl);
     if (result != CURLE_OK)
         throw cURLError(result, "curl_easy_perform");
+
+    long response_code;
+    result = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+    if (result != CURLE_OK)
+        throw cURLError(result, "curl_easy_getinfo");
+
+    if (response_code < 200 || response_code > 299)
+        throw HTTPResponse(response_code);
 
     return response.release();
 }

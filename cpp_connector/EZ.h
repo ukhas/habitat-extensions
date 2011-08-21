@@ -85,6 +85,18 @@ public:
 
 ostream &operator<<(ostream &o, cURLError &e);
 
+class HTTPResponse
+{
+    long response_code;
+
+public:
+    HTTPResponse(long r) : response_code(r) {};
+    ~HTTPResponse() {};
+    long get_response_code() { return response_code; };
+};
+
+ostream &operator<<(ostream &o, HTTPResponse &r);
+
 } /* namespace EZ */
 
 #endif /* HABITATCPP_EZ_H */
