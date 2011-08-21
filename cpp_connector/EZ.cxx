@@ -156,11 +156,6 @@ string *cURL::put(const string &url, const string &data)
     reset();
     setopt(CURLOPT_UPLOAD, 1);
 
-    /* Disable Expect: 100-continue */
-    cURLslist slist;
-    slist.append("Expect:");
-    setopt(CURLOPT_HTTPHEADER, slist.get());
-
     struct read_func_userdata userdata;
     userdata.data = &data;
     userdata.written = 0;

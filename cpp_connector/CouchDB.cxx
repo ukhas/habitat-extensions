@@ -91,7 +91,8 @@ void Database::save_doc(Json::Value &doc)
     doc_url.append(*doc_id_escaped);
     delete doc_id_escaped;
 
-    server.curl.put(doc_url, json_doc);
+    string *response = server.curl.put(doc_url, json_doc);
+    delete response;
 }
 
 Json::Value *Database::get_doc(const string &doc_id)
