@@ -4,6 +4,7 @@
 #include <curl/curl.h>
 #include <string>
 #include <memory>
+#include <stdexcept>
 
 using namespace std;
 
@@ -15,7 +16,7 @@ Mutex::Mutex()
 
     if (result != 0)
     {
-        throw "Failed to create mutex";
+        throw runtime_error("Failed to create mutex");
     }
 }
 
@@ -40,36 +41,13 @@ cURL::cURL()
 
     if (curl == NULL)
     {
-        throw "Failed to create curl";
+        throw runtime_error("Failed to create curl");
     }
 }
 
 cURL::~cURL()
 {
     curl_easy_cleanup(curl);
-}
-
-cURLError::cURLError(const string &info) 
-    : error(CURLE_OK), extra(""), info(info) {}
-
-cURLError::cURLError(CURLcode error, const string &extra) 
-    : error(error), extra(extra)
-{
-    info = extra;
-    info.append(": ");
-    info.append(curl_easy_strerror(error));
-}
-
-ostream &operator<<(ostream &o, cURLError &e)
-{
-    o << e.get_info();
-    return o;
-}
-
-ostream &operator<<(ostream &o, HTTPResponse &r)
-{
-    o << "HTTP " << r.get_response_code();
-    return o;
 }
 
 string *cURL::escape(const string &s)
@@ -85,7 +63,7 @@ string *cURL::escape(const string &s)
     result = curl_easy_escape(escaper.curl, s.c_str(), s.length());
 
     if (result == NULL)
-        throw "curl_easy_escape failed";
+        throw runtime_error("curl_easy_escape failed");
 
     result_string = new string(result);
     curl_free(result);
@@ -132,7 +110,7 @@ struct read_func_userdata
 
 static size_t read_func(void *ptr, size_t size, size_t nmemb, void *userdata)
 {
-    struct read_func_userdata *source = 
+    struct read_func_userdata *source =
         static_cast<struct read_func_userdata *>(userdata);
     char *target = static_cast<char *>(ptr);
     size_t max = size * nmemb;

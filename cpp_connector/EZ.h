@@ -5,6 +5,7 @@
 
 #include <string>
 #include <iostream>
+#include <stdexcept>
 #include <curl/curl.h>
 
 using namespace std;
@@ -69,35 +70,36 @@ public:
     const struct curl_slist *get() { return slist; };
 };
 
-class cURLError
+class cURLError : public runtime_error
 {
-    const CURLcode error;
-    const string extra;
-    string info;
+    cURLError(const string &what)
+        : runtime_error("EZ::cURLError: " + what),
+          error(CURLE_OK), function("") {};
 
-    cURLError(const string &extra);
-    cURLError(CURLcode error, const string &extra);
+    cURLError(CURLcode error, const string &function)
+        : runtime_error("EZ::cURLError: " + function + ": " +
+                        curl_easy_strerror(error)),
+          error(error), function(function) {};
+
     friend class cURL;
 
 public:
-    const string &get_info() { return info; };
-    CURLcode get_code() { return error; };
-    ~cURLError() {};
+    const CURLcode error;
+    const string function;
+    ~cURLError() throw() {};
 };
 
-ostream &operator<<(ostream &o, cURLError &e);
-
-class HTTPResponse
+class HTTPResponse : public runtime_error
 {
-    long response_code;
+    HTTPResponse(long r)
+        : runtime_error("EZ::HTTPResponse: " + r), response_code(r) {};
+
+    friend class cURL;
 
 public:
-    HTTPResponse(long r) : response_code(r) {};
-    ~HTTPResponse() {};
-    long get_response_code() { return response_code; };
+    const long response_code;
+    ~HTTPResponse() throw() {};
 };
-
-ostream &operator<<(ostream &o, HTTPResponse &r);
 
 } /* namespace EZ */
 

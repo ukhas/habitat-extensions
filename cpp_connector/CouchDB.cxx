@@ -4,6 +4,7 @@
 #include <curl/curl.h>
 #include <string>
 #include <memory>
+#include <stdexcept>
 #include "EZ.h"
 
 using namespace std;
@@ -18,14 +19,18 @@ static const char *url_sep_after(const string &s)
         return "";
 }
 
-Server::Server(const string &url) : url(url + url_sep_after(url)) {}
-Database::Database(Server &server, const string &db) 
-    : server(server), url(server.url + db + url_sep_after(db)) {}
-
-ostream &operator<<(ostream &o, Conflict &r)
+Server::Server(const string &url)
+    : url(url + url_sep_after(url))
 {
-    o << r.get_info();
-    return o;
+    if (!url.length())
+        throw invalid_argument("URL of zero length");
+}
+
+Database::Database(Server &server, const string &db)
+    : server(server), url(server.url + db + url_sep_after(db))
+{
+    if (!db.length())
+        throw invalid_argument("DB of zero length");
 }
 
 string Server::next_uuid()
@@ -49,15 +54,15 @@ string Server::next_uuid()
 
         Json::Reader reader;
         Json::Value root;
-        
+
         if (!reader.parse(*response, root, false))
-            throw "JSON Parsing error";
+            throw runtime_error("JSON Parsing error");
 
         response_destroyer.reset();
 
         const Json::Value uuids = root["uuids"];
         if (!uuids.isArray() || !uuids.size())
-            throw "Invalid UUIDs response";
+            throw runtime_error("Invalid UUIDs response");
 
         uuid = uuids[Json::UInt(0)].asString();
 
@@ -81,14 +86,14 @@ void Database::save_doc(Json::Value &doc)
         id = server.next_uuid();
 
     if (!id.isString())
-        throw "_id must be a string if set";
+        throw runtime_error("_id must be a string if set");
 
     string doc_id = id.asString();
 
     if (doc_id.length() == 0)
-        throw "_id cannot be an empty string";
+        throw runtime_error("_id cannot be an empty string");
     if (doc_id[0] == '_')
-        throw "_id cannot start with _";
+        throw runtime_error("_id cannot start with _");
 
     Json::FastWriter writer;
     string json_doc = writer.write(doc);
@@ -111,7 +116,7 @@ void Database::save_doc(Json::Value &doc)
     {
         /* Catch HTTP 409 Resource Conflict */
 
-        if (e.get_response_code() != 409)
+        if (e.response_code != 409)
             throw e;
 
         throw Conflict(doc_id);
@@ -121,7 +126,7 @@ void Database::save_doc(Json::Value &doc)
     Json::Value info;
 
     if (!reader.parse(*response, info, false))
-        throw "JSON Parsing error";
+        throw runtime_error("JSON Parsing error");
 
     response_destroyer.reset();
 
@@ -129,10 +134,10 @@ void Database::save_doc(Json::Value &doc)
     const Json::Value &new_rev = info["rev"];
 
     if (!new_id.isString() || !new_rev.isString())
-        throw "Invalid server response (id and rev should be strings)";
+        throw runtime_error("Invalid server response (id, rev !string)");
 
     if (new_id.asString() != doc_id)
-        throw "Server has gone insane";
+        throw runtime_error("Server has gone insane (saved wrong _id)");
 
     doc["_rev"] = new_rev;
 }
@@ -153,7 +158,7 @@ Json::Value *Database::get_doc(const string &doc_id)
     auto_ptr<string> response_destroyer(response);
 
     if (!reader.parse(*response, *doc, false))
-        throw "JSON Parsing error";
+        throw runtime_error("JSON Parsing error");
 
     response_destroyer.reset();
     value_destroyer.release();

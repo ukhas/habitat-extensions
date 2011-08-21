@@ -5,29 +5,53 @@
 
 #include <iostream>
 #include <string>
+#include <stdexcept>
+#include <json/json.h>
+#include "EZ.h"
+#include "CouchDB.h"
 
 using namespace std;
 
 namespace habitat {
 
+class UnmergeableError : public runtime_error
+{
+public:
+    UnmergeableError() : runtime_error("habitat::UnmergeableError") {};
+    UnmergeableError(const string &what) : runtime_error(what) {};
+};
+
+class CollisionError : public runtime_error
+{
+public:
+    CollisionError() : runtime_error("habitat::CollisionError") {};
+    CollisionError(const string &what) : runtime_error(what) {};
+};
+
 class Uploader
 {
+    EZ::Mutex mutex;
     string callsign;
-    string couch_uri;
-    string couch_db;
+    CouchDB::Server server;
+    CouchDB::Database database;
     int max_merge_attempts;
+    string latest_listener_info;
+    string latest_listener_telemetry;
+
+    string listener_doc(const char *type, const Json::Value &data,
+                        int time_created);
 
 public:
-    Uploader(string callsign, string couch_uri="http://habhub.org",
-             string couch_db="habitat", int max_merge_attempts=20);
-    ~Uploader();
-    void payload_telemetry(string string, double frequency=-1,
-                           int time_created=-1);
-    string listener_telemetry(time_t time, double latitude,
-                              double longitude, int altitude,
-                              int time_created=-1);
-    string listener_info(string name, string location, string radio,
-                         string antenna, int time_created=-1);
+    Uploader(const string &callsign,
+             const string &couch_uri="http://habhub.org",
+             const string &couch_db="habitat",
+             int max_merge_attempts=20);
+    ~Uploader() {};
+    string payload_telemetry(const string &string,
+                             const Json::Value &metadata=Json::Value::null,
+                             int time_created=-1);
+    string listener_telemetry(const Json::Value &data, int time_created=-1);
+    string listener_info(const Json::Value &data, int time_created=-1);
 };
 
 } /* namespace habitat */

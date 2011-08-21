@@ -2,11 +2,37 @@
 
 #include <iostream>
 #include <memory>
+#include <stdexcept>
+#include <ctime>
 
 #include "EZ.h"
 #include "CouchDB.h"
+#include "Uploader.h"
 
 using namespace std;
+
+void add_info(Json::Value &data)
+{
+    data["name"] = "Daniel Richman";
+    data["location"] = "Testing habitat cpp_uploader";
+    data["radio"] = "Test radio";
+    data["antenna"] = "Massive yagi";
+}
+
+void add_telemetry(Json::Value &data)
+{
+    struct tm tm;
+    time_t now = time(NULL);
+    gmtime_r(&now, &tm);
+
+    data["time"] = Json::Value(Json::objectValue);
+    data["time"]["hour"] = tm.tm_hour;
+    data["time"]["minute"] = tm.tm_min;
+    data["time"]["second"] = tm.tm_sec;
+    data["latitude"] = -24.456142;
+    data["longitude"] = 142.150205;
+    data["altitude"] = 123;
+}
 
 int main(int argc, char **argv)
 {
@@ -14,37 +40,20 @@ int main(int argc, char **argv)
 
     try
     {
-        CouchDB::Server s("http://localhost:5984/");
-        CouchDB::Database d = s["habitat"];
+        habitat::Uploader u("M0ZDR", "http://localhost:5984", "habitat");
+        Json::Value info, telemetry;
 
-        // auto_ptr<Json::Value> doc(d["2aebb7c97381d352bb2986a0b81fd826"]);
-        // cout << *(doc.get()) << endl;
+        add_info(info);
+        u.listener_info(info);
 
-        Json::Value doc(Json::objectValue);
-        doc["testing"] = true;
-        doc["hello"] = Json::Value(Json::arrayValue);
-        doc["hello"].append("World");
-        doc["hello"].append("From");
-        doc["hello"].append("c++");
+        add_telemetry(telemetry);
+        u.listener_telemetry(telemetry);
 
-        d.save_doc(doc);
-        cout << doc << endl;
+        u.payload_telemetry("Hello, completed C++ !");
     }
-    catch (EZ::cURLError e)
+    catch (runtime_error e)
     {
-        cout << "Threw cURLError: " << e << endl;
-    }
-    catch (EZ::HTTPResponse e)
-    {
-        cout << "Threw HTTPResponse: " << e << endl;
-    }
-    catch (CouchDB::Conflict e)
-    {
-        cout << "Threw Conflict: " << e << endl;
-    }
-    catch (const char *e)
-    {
-        cout << "Threw char*: " << e << endl;
+        cout << "Threw: " << e.what() << endl;
     }
 
     return 0;

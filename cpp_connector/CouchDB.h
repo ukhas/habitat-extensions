@@ -7,6 +7,7 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <stdexcept>
 #include <curl/curl.h>
 
 #include "EZ.h"
@@ -48,17 +49,17 @@ public:
     Database operator[](const string &n) { return Database(*this, n); }
 };
 
-class Conflict
+class Conflict : public runtime_error
 {
-    const string doc_id;
+    Conflict(const string &doc_id)
+        : runtime_error("CouchDB::Conflict: " + doc_id), doc_id(doc_id) {};
+
+    friend class Database;
 
 public:
-    Conflict(const string &d) : doc_id(d) {};
-    ~Conflict() {};
-    const string &get_info() { return doc_id; };
+    const string doc_id;
+    ~Conflict() throw() {};
 };
-
-ostream &operator<<(ostream &o, Conflict &r);
 
 } /* namespace CouchDB */
 
