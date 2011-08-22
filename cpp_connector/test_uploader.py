@@ -2,6 +2,10 @@ import subprocess
 import tempfile
 import json
 import elementtree.ElementTree
+import BaseHTTPServer
+import threading
+import collections
+import time
 
 class ProxyException:
     def __init__(self, name, what=None):
@@ -86,7 +90,148 @@ class Proxy:
     def listener_info(self, data, *args):
         return self._proxy(["listener_info", data] + list(args))
 
+class MockHTTP(BaseHTTPServer.HTTPServer):
+    def __init__(self, server_address=('localhost', 51205)):
+        BaseHTTPServer.HTTPServer.__init__(self, server_address,
+                                           MockHTTPHandler)
+        self.expecting = False
+        self.expect_queue = collections.deque()
+        self.url = "http://localhost:{0}".format(self.server_port)
+        self.timeout = 1
+
+    expect_defaults = {
+        # expect:
+        "method": "GET",
+        "path": "/",
+        "body": None,   # string if you expect something from a POST
+        # body_json=object
+
+        # and respond with:
+        "code": 404,
+        "respond": "If this was a 200, this would be your page"
+        # respond_json=object
+    }
+
+    def expect_request(self, **kwargs):
+        assert not self.expecting
+
+        e = self.expect_defaults.copy()
+        e.update(kwargs)
+
+        self.expect_queue.append(e)
+
+    def run(self):
+        assert not self.expecting
+        self.expecting = True
+        self.expect_handled = False
+        self.expect_successes = 0
+        self.expect_length = len(self.expect_queue)
+
+        self.expect_thread = threading.Thread(target=self._run_expect)
+        self.expect_thread.daemon = True
+        self.expect_thread.start()
+
+    def check(self):
+        assert self.expecting
+        self.expect_queue.clear()
+        self.expect_thread.join()
+
+        assert self.expect_successes == self.expect_length
+
+        self.expecting = False
+
+    def _run_expect(self):
+        self.error = None
+        while len(self.expect_queue):
+            self.handle_request()
+
+class MockHTTPHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+    def compare(self, a, b, what):
+        if a != b:
+            raise AssertionError("http request expect", what, a, b)
+
+    def check_expect(self):
+        assert self.server.expecting
+        e = self.server.expect_queue.popleft()
+
+        self.compare(e["method"], self.command, "method")
+        self.compare(e["path"], self.path, "path")
+
+        length = self.headers.getheader('content-length')
+        if length:
+            length = int(length)
+            body = self.rfile.read(length)
+            assert len(body) == length
+        else:
+            body = None
+
+        if "body_json" in e:
+            self.compare(e["body_json"], json.loads(body), "body_json")
+        else:
+            self.compare(e["body"], body, "body")
+
+        code = e["code"]
+        if "respond_json" in e:
+            content = json.dumps(e["respond_json"])
+        else:
+            content = e["respond"]
+
+        self.send_response(code)
+        self.send_header("Content-Length", str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
+
+        self.server.expect_successes += 1
+
+    def log_request(self, *args, **kwargs):
+        pass
+
+    do_POST = check_expect
+    do_GET = check_expect
+    do_PUT = check_expect
+
+class CloseEnoughTime:
+    def __init__(self, now=False, tolerance=1):
+        if now is False or now is None:
+            self.time = time.time()
+            self.later = False
+        else:
+            self.later = True
+
+        self.tolerance = tolerance
+
+    def __eq__(self, rhs):
+        if not isinstance(rhs, int) and not isinstance(rhs, float):
+            return False
+
+        if self.later:
+            self.time = time.time()
+
+        return abs(self.time - rhs) <= self.tolerance
+
 if __name__ == "__main__":
-    p = Proxy("test uploader proxy test", "http://localhost:5984")
-    #print repr(p.payload_telemetry("testing proxy"))
+    s = MockHTTP()
+    p = Proxy("test uploader proxy test", s.url, "ledatabase")
+
+    s.expect_request(path="/_uuids?count=100",
+                     code=200,
+                     respond_json={"uuids": ["meh"]})
+    s.expect_request(method="PUT",
+                     path="/ledatabase/meh",
+                     body_json={
+                         "_id": "meh",
+                         "time_created": CloseEnoughTime(),
+                         "time_uploaded": CloseEnoughTime(),
+                         "data": {
+                             "callsign": "test uploader proxy test",
+                             "some_data": True
+                         },
+                         "type": "listener_telemetry"
+                     },
+                     code=201,
+                     respond_json={"id": "meh", "rev": "blah"})
+    s.run()
+    assert p.listener_telemetry({"some_data": True})
+    s.check()
+
     p.close()
