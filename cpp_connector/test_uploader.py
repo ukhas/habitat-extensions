@@ -15,6 +15,8 @@ class Proxy:
     def __init__(self, callsign, couch_uri=None, couch_db=None,
                  max_merge_attempts=None,
                  command="./cpp_connector", with_valgrind=True):
+        self.closed = False
+
         if with_valgrind:
             self.xmlfile = tempfile.TemporaryFile("a+b")
             args = ("valgrind", "--quiet", "--xml=yes",
@@ -57,9 +59,11 @@ class Proxy:
                 raise AssertionError("len(obj)")
 
     def __del__(self):
-        self.close(check=False)
+        if not self.closed:
+            self.close(check=False)
 
     def close(self, check=True):
+        self.closed = True
         self.p.stdin.close()
         ret = self.p.wait()
 
