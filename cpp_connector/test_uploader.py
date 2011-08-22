@@ -1,7 +1,7 @@
 import subprocess
 import tempfile
 import json
-import elementtree
+import elementtree.ElementTree
 
 class ProxyException:
     def __init__(self, name, what=None):
@@ -56,11 +56,22 @@ class Proxy:
             else:
                 raise AssertionError("len(obj)")
 
+    def __del__(self):
+        self.close(check=False)
+
+    def close(self, check=True):
+        self.p.stdin.close()
+        ret = self.p.wait()
+
+        if check:
+            assert ret == 0
+            self._check_valgrind()
+
     def _check_valgrind(self):
         if self.xmlfile:
             self.xmlfile.seek(0)
             tree = elementtree.ElementTree.parse(self.xmlfile)
-            assert tree.find("errorcounts").getchildren() == 0
+            assert len(tree.find("errorcounts").getchildren()) == 0
 
     def payload_telemetry(self, data, *args):
         return self._proxy(["payload_telemetry", data] + list(args))
@@ -73,4 +84,5 @@ class Proxy:
 
 if __name__ == "__main__":
     p = Proxy("test uploader proxy test", "http://localhost:5984")
-    print repr(p.payload_telemetry("testing proxy"))
+    #print repr(p.payload_telemetry("testing proxy"))
+    p.close()
