@@ -75,7 +75,7 @@ class Proxy:
         if self.xmlfile:
             self.xmlfile.seek(0)
             tree = elementtree.ElementTree.parse(self.xmlfile)
-            assert len(tree.find("errorcounts").getchildren()) == 0
+            assert tree.find("error") == None
 
     def payload_telemetry(self, data, *args):
         return self._proxy(["payload_telemetry", data] + list(args))
