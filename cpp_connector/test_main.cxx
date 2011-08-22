@@ -12,7 +12,7 @@ using namespace std;
 
 static habitat::Uploader *proxy_constructor(Json::Value command);
 static string proxy_listener_info(habitat::Uploader *u, Json::Value command);
-static string proxy_listener_telemetry(habitat::Uploader *u, 
+static string proxy_listener_telemetry(habitat::Uploader *u,
                                        Json::Value command);
 static string proxy_payload_telemetry(habitat::Uploader *u,
                                       Json::Value command);
@@ -27,19 +27,17 @@ int main(int argc, char **argv)
 
     for (;;)
     {
-        auto_ptr<char> line(new char[1024]);
-        cin.getline(line.get(), 1024);
+        char line[1024];
+        cin.getline(line, 1024);
 
-        if (line.get()[0] == '\0')
+        if (line[0] == '\0')
             break;
 
         Json::Reader reader;
         Json::Value command;
 
-        if (!reader.parse(line.get(), command, false))
+        if (!reader.parse(line, command, false))
             throw runtime_error("JSON parsing failed");
-
-        line.reset();
 
         if (!command.isArray() || !command[0u].isString())
             throw runtime_error("Invalid JSON input");
@@ -136,7 +134,7 @@ static string proxy_listener_info(habitat::Uploader *u, Json::Value command)
         return u->listener_info(data, tc.asInt());
 }
 
-static string proxy_listener_telemetry(habitat::Uploader *u, 
+static string proxy_listener_telemetry(habitat::Uploader *u,
                                        Json::Value command)
 {
     const Json::Value &data = command[1u];
