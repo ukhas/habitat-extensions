@@ -40,8 +40,8 @@ string Server::next_uuid()
 
     if (uuid_cache.size())
     {
-        uuid = uuid_cache.back();
-        uuid_cache.pop_back();
+        uuid = uuid_cache.front();
+        uuid_cache.pop_front();
         return uuid;
     }
     else

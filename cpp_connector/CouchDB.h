@@ -6,7 +6,7 @@
 #include <json/json.h>
 #include <string>
 #include <iostream>
-#include <vector>
+#include <deque>
 #include <stdexcept>
 #include <curl/curl.h>
 
@@ -36,7 +36,7 @@ public:
 class Server
 {
     const string url;
-    vector<string> uuid_cache;
+    deque<string> uuid_cache;
     EZ::Mutex uuid_cache_mutex;
     EZ::cURL curl;
 

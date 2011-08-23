@@ -10,6 +10,7 @@
 
 using namespace std;
 
+static Json::Value proxy_callback(const string &name, const Json::Value &args);
 static habitat::Uploader *proxy_constructor(Json::Value command);
 static string proxy_listener_info(habitat::Uploader *u, Json::Value command);
 static string proxy_listener_telemetry(habitat::Uploader *u,
@@ -18,6 +19,8 @@ static string proxy_payload_telemetry(habitat::Uploader *u,
                                       Json::Value command);
 static void report_result(const string &arg1, const string &arg2="",
                           const string &arg3="");
+
+static bool enable_callbacks = false;
 
 int main(int argc, char **argv)
 {
@@ -46,6 +49,8 @@ int main(int argc, char **argv)
         if (!u.get() && command_name != "init")
             throw runtime_error("You must initialise it first");
 
+        enable_callbacks = true;
+
         try
         {
             string return_value;
@@ -63,6 +68,8 @@ int main(int argc, char **argv)
 
             if (command_name != "init")
                 report_result("return", return_value);
+            else
+                report_result("return");
         }
         catch (runtime_error e)
         {
@@ -79,9 +86,66 @@ int main(int argc, char **argv)
         {
             report_result("error", "unknown_error");
         }
+
+        enable_callbacks = false;
     }
 
     return 0;
+}
+
+time_t time(time_t *t) throw()
+{
+    static time_t last_time = 10000;
+    time_t value;
+
+    if (!enable_callbacks)
+    {
+        value = last_time;
+    }
+    else
+    {
+        Json::Value result = proxy_callback("time", Json::Value::null);
+
+        if (!result.isInt())
+            throw runtime_error("invalid callback response");
+
+        value = result.asInt();
+    }
+
+    last_time = value;
+
+    if (t)
+        *t = value;
+
+    return value;
+}
+
+static Json::Value proxy_callback(const string &name, const Json::Value &args)
+{
+    Json::Value request(Json::arrayValue);
+    request.append("callback");
+    request.append(name);
+    request.append(args);
+
+    Json::FastWriter writer;
+    cout << writer.write(request);
+
+    char line[1024];
+    cin.getline(line, 1024);
+
+    Json::Reader reader;
+    Json::Value response;
+
+    if (!reader.parse(line, response, false))
+        throw runtime_error("JSON parsing failed");
+
+    if (!response.isArray() || !response[0u].isString())
+        throw runtime_error("Invalid callback response");
+
+    if (response[0u].asString() != "return")
+        throw runtime_error("Callback failed");
+
+    return response[1u];
 }
 
 static habitat::Uploader *proxy_constructor(Json::Value command)

@@ -6,6 +6,7 @@ import BaseHTTPServer
 import threading
 import collections
 import time
+import uuid
 
 class ProxyException:
     def __init__(self, name, what=None):
@@ -15,24 +16,45 @@ class ProxyException:
     def __str__(self):
         return "ProxyException: {0.name}: {0.what!r}".format(self)
 
+class Callbacks:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.fake_time = 10000  # set in fake_main.cxx
+
+    def advance_time(self, amount=1):
+        with self.lock:
+            self.fake_time += amount
+
+    def time(self):
+        with self.lock:
+            return self.fake_time
+
+    def time_project(self, value):
+        """what the time will be value seconds into the future"""
+        return 10000 + value
+
 class Proxy:
     def __init__(self, callsign, couch_uri=None, couch_db=None,
                  max_merge_attempts=None,
-                 command="./cpp_connector", with_valgrind=True):
+                 command="./cpp_connector",
+                 callbacks=None,
+                 with_valgrind=False):
+
         self.closed = False
 
         if with_valgrind:
-            self.xmlfile = tempfile.TemporaryFile("a+b")
+            self.xmlfile = tempfile.NamedTemporaryFile("a+b")
             args = ("valgrind", "--quiet", "--xml=yes",
-                    "--xml-fd=2", command)
+                    "--xml-file=" + self.xmlfile.name, command)
             self.p = subprocess.Popen(args, stdin=subprocess.PIPE,
-                                      stdout=subprocess.PIPE,
-                                      stderr=self.xmlfile)
+                                      stdout=subprocess.PIPE)
         else:
             self.xmlfile = None
             self.p = subprocess.Popen(command, stdin=subprocess.PIPE,
                                       stdout=subprocess.PIPE)
 
+
+        self.callbacks = callbacks
 
         init_args = ["init", callsign]
 
@@ -47,20 +69,33 @@ class Proxy:
         self.p.stdin.write(json.dumps(command))
         self.p.stdin.write("\n")
 
-        if get_response:
+        while True:
             line = self.p.stdout.readline()
             assert line and line.endswith("\n")
             obj = json.loads(line)
 
             if obj[0] == "return":
-                return obj[1]
+                if len(obj) == 1:
+                    return None
+                else:
+                    return obj[1]
             elif obj[0] == "error":
                 if len(obj) == 3:
                     raise ProxyException(obj[1], obj[2])
                 else:
                     raise ProxyException(obj[1])
+            elif obj[0] == "callback":
+                (cb, name, args) = obj
+                func = getattr(self.callbacks, name)
+                if args:
+                    result = func(args)
+                else:
+                    result = func()
+
+                self.p.stdin.write(json.dumps(["return", result]))
+                self.p.stdin.write("\n")
             else:
-                raise AssertionError("len(obj)")
+                raise AssertionError("invalid response")
 
     def __del__(self):
         if not self.closed:
@@ -72,7 +107,7 @@ class Proxy:
         ret = self.p.wait()
 
         if check:
-            assert ret == 0
+            assert ret == 0, ret
             self._check_valgrind()
 
     def _check_valgrind(self):
@@ -91,13 +126,17 @@ class Proxy:
         return self._proxy(["listener_info", data] + list(args))
 
 class MockHTTP(BaseHTTPServer.HTTPServer):
-    def __init__(self, server_address=('localhost', 51205)):
+    def __init__(self, server_address=('localhost', 51205), callbacks=None):
         BaseHTTPServer.HTTPServer.__init__(self, server_address,
                                            MockHTTPHandler)
         self.expecting = False
         self.expect_queue = collections.deque()
         self.url = "http://localhost:{0}".format(self.server_port)
         self.timeout = 1
+        self.callbacks = callbacks
+
+    def advance_time(self, value):
+        self.callbacks.advance_time(value)
 
     expect_defaults = {
         # expect:
@@ -157,6 +196,14 @@ class MockHTTPHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.compare(e["method"], self.command, "method")
         self.compare(e["path"], self.path, "path")
 
+        expect_100_header = self.headers.getheader('expect')
+        expect_100 = expect_100_header and \
+                     expect_100_header.lower() == "100-continue"
+        support_100 = self.request_version != 'HTTP/0.9'
+
+        if support_100 and expect_100:
+            self.wfile.write(self.protocol_version + " 100 Continue\r\n\r\n")
+
         length = self.headers.getheader('content-length')
         if length:
             length = int(length)
@@ -176,6 +223,9 @@ class MockHTTPHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         else:
             content = e["respond"]
 
+        if "advance_time_after" in e:
+            self.server.advance_time(e["advance_time_after"])
+
         self.send_response(code)
         self.send_header("Content-Length", str(len(content)))
         self.end_headers()
@@ -190,63 +240,67 @@ class MockHTTPHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     do_GET = check_expect
     do_PUT = check_expect
 
-class CloseEnoughTime:
-    def __init__(self, now=False, tolerance=1):
-        if now is False or now is None:
-            self.time = time.time()
-            self.later = False
-        else:
-            self.later = True
-
-        self.tolerance = tolerance
-
-    def __eq__(self, rhs):
-        if not isinstance(rhs, int) and not isinstance(rhs, float):
-            return False
-
-        if self.later:
-            self.time = time.time()
-
-        return abs(self.time - rhs) <= self.tolerance
-
-    def __repr__(self):
-        if self.later:
-            return "<Tolerant time: now>"
-        else:
-            return "<Tolerant time: {0}>".format(self.time)
-
 class TestCPPConnector:
     def setup(self):
-        self.couchdb = MockHTTP()
-        self.uploader = Proxy("PROXYCALL", self.couchdb.url)
+        self.callbacks = Callbacks()
+        self.couchdb = MockHTTP(callbacks=self.callbacks)
+        self.uploader = Proxy("PROXYCALL", self.couchdb.url,
+                              callbacks=self.callbacks)
+        self.uuids = collections.deque()
 
     def teardown(self):
         self.uploader.close()
 
-    def test_example(self):
+    def _gen_fake_uuid(self):
+        return str(uuid.uuid1()).replace("-", "")
+
+    def _gen_fake_rev(self, num=1):
+        return str(num) + "-" + self._gen_fake_uuid()
+
+    def expect_uuid_request(self):
+        new_uuids = [self._gen_fake_uuid() for i in xrange(100)]
+        self.uuids.extend(new_uuids)
+
         self.couchdb.expect_request(
             path="/_uuids?count=100",
             code=200,
-            respond_json={"uuids": ["meh"]}
+            respond_json={"uuids": new_uuids},
         )
-        self.couchdb.expect_request(
-            method="PUT",
-            path="/habitat/meh",
-            body_json={
-                "_id": "meh",
-                "time_created": CloseEnoughTime(),
-                "time_uploaded": CloseEnoughTime(),
-                "data": {
-                    "callsign": "PROXYCALL",
-                    "some_data": True
+
+    def pop_uuid(self):
+        return self.uuids.popleft()
+
+    def test_example(self):
+        self.expect_uuid_request()
+
+        should_use_uuids = []
+
+        for i in xrange(10):
+            uuid = self.pop_uuid()
+            should_use_uuids.append(uuid)
+
+            self.couchdb.expect_request(
+                method="PUT",
+                path="/habitat/" + uuid,
+                body_json={
+                    "_id": uuid,
+                    "time_created": self.callbacks.time_project(i),
+                    "time_uploaded": self.callbacks.time_project(i),
+                    "data": {
+                        "callsign": "PROXYCALL",
+                        "some_data": True
+                    },
+                    "type": "listener_telemetry"
                 },
-                "type": "listener_telemetry"
-            },
-            code=201,
-            respond_json={"id": "meh", "rev": "blah"}
-        )
+                code=201,
+                respond_json={"id": uuid, "rev": self._gen_fake_rev()},
+                advance_time_after=1
+            )
+
         self.couchdb.run()
 
-        doc_id = self.uploader.listener_telemetry({"some_data": True})
-        assert doc_id == "meh"
+        for i in xrange(10):
+            doc_id = self.uploader.listener_telemetry({"some_data": True})
+            assert doc_id == should_use_uuids[i]
+
         self.couchdb.check()
