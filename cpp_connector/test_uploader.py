@@ -209,29 +209,44 @@ class CloseEnoughTime:
 
         return abs(self.time - rhs) <= self.tolerance
 
-if __name__ == "__main__":
-    s = MockHTTP()
-    p = Proxy("test uploader proxy test", s.url, "ledatabase")
+    def __repr__(self):
+        if self.later:
+            return "<Tolerant time: now>"
+        else:
+            return "<Tolerant time: {0}>".format(self.time)
 
-    s.expect_request(path="/_uuids?count=100",
-                     code=200,
-                     respond_json={"uuids": ["meh"]})
-    s.expect_request(method="PUT",
-                     path="/ledatabase/meh",
-                     body_json={
-                         "_id": "meh",
-                         "time_created": CloseEnoughTime(),
-                         "time_uploaded": CloseEnoughTime(),
-                         "data": {
-                             "callsign": "test uploader proxy test",
-                             "some_data": True
-                         },
-                         "type": "listener_telemetry"
-                     },
-                     code=201,
-                     respond_json={"id": "meh", "rev": "blah"})
-    s.run()
-    assert p.listener_telemetry({"some_data": True})
-    s.check()
+class TestCPPConnector:
+    def setup(self):
+        self.couchdb = MockHTTP()
+        self.uploader = Proxy("PROXYCALL", self.couchdb.url)
 
-    p.close()
+    def teardown(self):
+        self.uploader.close()
+
+    def test_example(self):
+        self.couchdb.expect_request(
+            path="/_uuids?count=100",
+            code=200,
+            respond_json={"uuids": ["meh"]}
+        )
+        self.couchdb.expect_request(
+            method="PUT",
+            path="/habitat/meh",
+            body_json={
+                "_id": "meh",
+                "time_created": CloseEnoughTime(),
+                "time_uploaded": CloseEnoughTime(),
+                "data": {
+                    "callsign": "PROXYCALL",
+                    "some_data": True
+                },
+                "type": "listener_telemetry"
+            },
+            code=201,
+            respond_json={"id": "meh", "rev": "blah"}
+        )
+        self.couchdb.run()
+
+        doc_id = self.uploader.listener_telemetry({"some_data": True})
+        assert doc_id == "meh"
+        self.couchdb.check()
