@@ -7,6 +7,7 @@ import threading
 import collections
 import time
 import uuid
+import copy
 
 class ProxyException:
     def __init__(self, name, what=None):
@@ -248,17 +249,20 @@ class TestCPPConnector:
                               callbacks=self.callbacks)
         self.uuids = collections.deque()
 
+        self.db_path = "/habitat/"
+
     def teardown(self):
         self.uploader.close()
+        self.couchdb.server_close()
 
-    def _gen_fake_uuid(self):
+    def gen_fake_uuid(self):
         return str(uuid.uuid1()).replace("-", "")
 
-    def _gen_fake_rev(self, num=1):
-        return str(num) + "-" + self._gen_fake_uuid()
+    def gen_fake_rev(self, num=1):
+        return str(num) + "-" + self.gen_fake_uuid()
 
     def expect_uuid_request(self):
-        new_uuids = [self._gen_fake_uuid() for i in xrange(100)]
+        new_uuids = [self.gen_fake_uuid() for i in xrange(100)]
         self.uuids.extend(new_uuids)
 
         self.couchdb.expect_request(
@@ -268,39 +272,377 @@ class TestCPPConnector:
         )
 
     def pop_uuid(self):
+        self.ensure_uuids()
         return self.uuids.popleft()
 
-    def test_example(self):
-        self.expect_uuid_request()
+    def ensure_uuids(self):
+        if not len(self.uuids):
+            self.expect_uuid_request()
 
+    def expect_save_doc(self, doc, rev=None, advance_time_after=0):
+        if not rev:
+            rev = 1
+
+        self.couchdb.expect_request(
+            method="PUT",
+            path=self.db_path + doc["_id"],
+            body_json=doc,
+            code=201,
+            respond_json={"id": doc["_id"], "rev": self.gen_fake_rev(rev)},
+            advance_time_after=advance_time_after
+        )
+
+    def test_uses_server_uuids(self):
         should_use_uuids = []
 
-        for i in xrange(10):
+        for i in xrange(200):
             uuid = self.pop_uuid()
             should_use_uuids.append(uuid)
 
-            self.couchdb.expect_request(
-                method="PUT",
-                path="/habitat/" + uuid,
-                body_json={
-                    "_id": uuid,
-                    "time_created": self.callbacks.time_project(i),
-                    "time_uploaded": self.callbacks.time_project(i),
-                    "data": {
-                        "callsign": "PROXYCALL",
-                        "some_data": True
-                    },
-                    "type": "listener_telemetry"
+            doc = {
+                "_id": uuid,
+                "time_created": self.callbacks.time_project(i),
+                "time_uploaded": self.callbacks.time_project(i),
+                "data": {
+                    "callsign": "PROXYCALL",
+                    "test": 123.356
                 },
-                code=201,
-                respond_json={"id": uuid, "rev": self._gen_fake_rev()},
-                advance_time_after=1
-            )
+                "type": "listener_telemetry"
+            }
+
+            self.expect_save_doc(doc, advance_time_after=1)
 
         self.couchdb.run()
 
-        for i in xrange(10):
-            doc_id = self.uploader.listener_telemetry({"some_data": True})
+        for i in xrange(200):
+            doc_id = self.uploader.listener_telemetry({"test": 123.356})
             assert doc_id == should_use_uuids[i]
 
         self.couchdb.check()
+
+    def add_sample_listener_docs(self):
+        telemetry_data = {"some_data": 123, "_flag": True}
+        telemetry_doc = {
+            "_id": self.pop_uuid(),
+            "data": copy.deepcopy(telemetry_data),
+            "type": "listener_telemetry",
+            "time_created": self.callbacks.time_project(0),
+            "time_uploaded": self.callbacks.time_project(0)
+        }
+        telemetry_doc["data"]["callsign"] = "PROXYCALL"
+
+        info_data = {"my_radio": "Duga-3", "vehicle": "Tractor"}
+        info_doc = {
+            "_id": self.pop_uuid(),
+            "data": copy.deepcopy(info_data),
+            "type": "listener_info",
+            "time_created": self.callbacks.time_project(0),
+            "time_uploaded": self.callbacks.time_project(0)
+        }
+        info_doc["data"]["callsign"] = "PROXYCALL"
+
+        self.expect_save_doc(telemetry_doc)
+        self.expect_save_doc(info_doc)
+
+        self.couchdb.run()
+        self.sample_telemetry_doc_id = \
+                self.uploader.listener_telemetry(telemetry_data)
+        self.sample_info_doc_id = self.uploader.listener_info(info_data)
+        self.couchdb.check()
+
+        assert self.sample_telemetry_doc_id == telemetry_doc["_id"]
+        assert self.sample_info_doc_id == info_doc["_id"]
+
+    def test_pushes_listener_docs(self):
+        self.add_sample_listener_docs()
+
+        # And now again, but this time, setting time_created.
+        telemetry_data = {
+            "time": {
+                "hour": 12,
+                "minute": 40,
+                "second": 5
+            },
+            "latitude": 35.11,
+            "longitude": 137.567,
+            "altitude": 12
+        }
+        telemetry_doc = {
+            "_id": self.pop_uuid(),
+            "data": copy.deepcopy(telemetry_data),
+            "type": "listener_telemetry",
+            "time_created": 501,
+            "time_uploaded": self.callbacks.time_project(0)
+        }
+        telemetry_doc["data"]["callsign"] = "PROXYCALL"
+
+        info_data = {
+            "name": "Daniel Richman",
+            "location": "Reading, UK",
+            "radio": "Yaesu FT 790R",
+            "antenna": "Whip"
+        }
+        info_doc = {
+            "_id": self.pop_uuid(),
+            "data": copy.deepcopy(info_data),
+            "type": "listener_info",
+            "time_created": 409,
+            "time_uploaded": self.callbacks.time_project(5)
+        }
+        info_doc["data"]["callsign"] = "PROXYCALL"
+
+        self.expect_save_doc(telemetry_doc, advance_time_after=5)
+        self.expect_save_doc(info_doc)
+
+        self.couchdb.run()
+        telemetry_doc_id = \
+                self.uploader.listener_telemetry(telemetry_data, 501)
+        info_doc_id = self.uploader.listener_info(info_data, 409)
+        self.couchdb.check()
+
+        assert telemetry_doc_id == telemetry_doc["_id"]
+        assert info_doc_id == info_doc["_id"]
+
+    ptlm_doc_id = "c0be13b259acfd2fe23cd0d1e70555d6" \
+                  "8f83926278b23f5b813bdc75f6b9cdd6"
+    ptlm_string = "asdf blah \x12 binar\x04\x01 asdfasdfsz"
+    ptlm_metadata = {"frequency": 434075000, "misc": "Hi"}
+    ptlm_doc = {
+        "_id": ptlm_doc_id,
+        "data": {
+            "_raw": "YXNkZiBibGFoIBIgYmluYXIEASBhc2RmYXNkZnN6"
+        },
+        "type": "payload_telemetry",
+        "receivers": {
+            "PROXYCALL": {
+                "frequency": 434075000,
+                "misc": "Hi"
+            }
+        }
+    }
+
+    def test_payload_telemetry(self):
+        # WARNING: JsonCPP does not support strings with \0 in the middle of
+        # them, because it does not store the length of the string and instead
+        # later figures it out with strlen. This does not harm the uploader
+        # because our code converts binary data to base64 before giving it
+        # to the json encoder. However, the json stdin proxy call interface
+        # isn't going to work with nulls in it.
+
+        receiver_info = {
+            "time_created": self.callbacks.time_project(0),
+            "time_uploaded": self.callbacks.time_project(0),
+        }
+
+        doc = copy.deepcopy(self.ptlm_doc)
+        doc["receivers"]["PROXYCALL"].update(receiver_info)
+
+        self.expect_save_doc(doc)
+        self.couchdb.run()
+        ret_doc_id = self.uploader.payload_telemetry(self.ptlm_string,
+                                                     self.ptlm_metadata)
+        self.couchdb.check()
+
+        assert ret_doc_id == self.ptlm_doc_id
+
+    def test_adds_latest_listener_doc(self):
+        self.add_sample_listener_docs()
+
+        receiver_info = {
+            "time_created": self.callbacks.time_project(0),
+            "time_uploaded": self.callbacks.time_project(0),
+            "latest_listener_telemetry": self.sample_telemetry_doc_id,
+            "latest_listener_info": self.sample_info_doc_id
+        }
+
+        doc = copy.deepcopy(self.ptlm_doc)
+        doc["receivers"]["PROXYCALL"].update(receiver_info)
+
+        self.expect_save_doc(doc)
+        self.couchdb.run()
+        self.uploader.payload_telemetry(self.ptlm_string, self.ptlm_metadata)
+        self.couchdb.check()
+
+    ptlm_doc_existing = {
+        "_id": ptlm_doc_id,
+        "data": {
+            "_raw": "YXNkZiBibGFoIBIgYmluYXIEASBhc2RmYXNkZnN6",
+            "some_parsed_data": 12345
+        },
+        "type": "payload_telemetry",
+        "receivers": {
+            "SOMEONEELSE": {
+                "time_created": 200,
+                "time_uploaded": 240,
+                "frequency": 434074000,
+                "asdf": "World"
+            }
+        }
+    }
+
+    def test_ptlm_merges_payload_conflicts(self):
+        receiver_info = {
+            "time_created": self.callbacks.time_project(0),
+            "time_uploaded": self.callbacks.time_project(0),
+        }
+
+        doc = copy.deepcopy(self.ptlm_doc)
+        doc["receivers"]["PROXYCALL"].update(receiver_info)
+
+        self.couchdb.expect_request(
+            method="PUT",
+            path=self.db_path + doc["_id"],
+            body_json=doc,
+            code=409,
+            respond_json={"error": "conflict"},
+            advance_time_after=5
+        )
+
+        self.couchdb.expect_request(
+            path=self.db_path + self.ptlm_doc_id,
+            code=200,
+            respond_json=self.ptlm_doc_existing,
+            advance_time_after=5,
+        )
+
+        doc_merged = copy.deepcopy(self.ptlm_doc_existing)
+        doc_merged["receivers"]["PROXYCALL"] = \
+            copy.deepcopy(self.ptlm_doc["receivers"]["PROXYCALL"])
+        receiver_info = copy.deepcopy(receiver_info)
+        receiver_info["time_uploaded"] = self.callbacks.time_project(10)
+        doc_merged["receivers"]["PROXYCALL"].update(receiver_info)
+
+        self.expect_save_doc(doc_merged)
+
+        self.couchdb.run()
+        self.uploader.payload_telemetry(self.ptlm_string, self.ptlm_metadata)
+        self.couchdb.check()
+
+    def test_ptlm_refuses_to_merge_collision(self):
+        receiver_info = {
+            "time_created": self.callbacks.time_project(0),
+            "time_uploaded": self.callbacks.time_project(0),
+        }
+
+        doc = copy.deepcopy(self.ptlm_doc)
+        doc["receivers"]["PROXYCALL"].update(receiver_info)
+        del doc["receivers"]["PROXYCALL"]["frequency"]
+        del doc["receivers"]["PROXYCALL"]["misc"]
+
+        self.couchdb.expect_request(
+            method="PUT",
+            path=self.db_path + doc["_id"],
+            body_json=doc,
+            code=409,
+            respond_json={"error": "conflict"},
+            advance_time_after=5
+        )
+
+        doc_conflict = copy.deepcopy(self.ptlm_doc_existing)
+        doc_conflict["data"]["_raw"] = "cGluZWFwcGxlcw=="
+
+        self.couchdb.expect_request(
+            path=self.db_path + self.ptlm_doc_id,
+            code=200,
+            respond_json=doc_conflict
+        )
+
+        self.couchdb.run()
+
+        try:
+            self.uploader.payload_telemetry(self.ptlm_string)
+        except ProxyException, e:
+            if e.name == "runtime_error" and \
+               e.what == "habitat::CollisionError":
+                pass
+            else:
+                raise
+        else:
+            raise AssertionError("Did not raise CollisionError")
+
+        self.couchdb.check()
+
+    def add_mock_conflicts(self, n):
+        receiver_info = {
+            "time_created": self.callbacks.time_project(0),
+            "time_uploaded": self.callbacks.time_project(0),
+        }
+
+        doc = copy.deepcopy(self.ptlm_doc)
+        doc["receivers"]["PROXYCALL"].update(receiver_info)
+
+        self.couchdb.expect_request(
+            method="PUT",
+            path=self.db_path + self.ptlm_doc_id,
+            body_json=doc,
+            code=409,
+            respond_json={"error": "conflict"}
+        )
+
+        doc_existing = copy.deepcopy(self.ptlm_doc_existing)
+
+        doc_merged = copy.deepcopy(self.ptlm_doc_existing)
+        doc_merged["receivers"]["PROXYCALL"] = \
+            copy.deepcopy(self.ptlm_doc["receivers"]["PROXYCALL"])
+        doc_merged["receivers"]["PROXYCALL"].update(receiver_info)
+
+        for i in xrange(n):
+            self.couchdb.expect_request(
+                path=self.db_path + self.ptlm_doc_id,
+                code=200,
+                respond_json=doc_existing,
+            )
+
+            self.couchdb.expect_request(
+                method="PUT",
+                path=self.db_path + self.ptlm_doc_id,
+                body_json=doc_merged,
+                code=409,
+                respond_json={"error": "conflict"},
+                advance_time_after=1
+            )
+
+            doc_existing = copy.deepcopy(doc_existing)
+            doc_merged = copy.deepcopy(doc_merged)
+
+            new_call = "listener_{0}".format(i)
+            new_info = {"time_created": 600 + i, "time_uploaded": 641 + i}
+
+            doc_existing["receivers"][new_call] = new_info
+            doc_merged["receivers"][new_call] = new_info
+
+            doc_merged["receivers"]["PROXYCALL"]["time_uploaded"] = \
+                self.callbacks.time_project(i + 1)
+
+        return (doc_existing, doc_merged)
+
+    def test_merges_multiple_conflicts(self):
+        (final_doc_existing, final_doc_merged) = self.add_mock_conflicts(15)
+
+        self.couchdb.expect_request(
+            path=self.db_path + self.ptlm_doc_id,
+            code=200,
+            respond_json=final_doc_existing,
+        )
+
+        self.expect_save_doc(final_doc_merged)
+
+        self.couchdb.run()
+        self.uploader.payload_telemetry(self.ptlm_string, self.ptlm_metadata)
+        self.couchdb.check()
+
+    def test_gives_up_after_many_conflicts(self):
+        self.add_mock_conflicts(20)
+        self.couchdb.run()
+
+        try:
+            self.uploader.payload_telemetry(self.ptlm_string,
+                                            self.ptlm_metadata)
+        except ProxyException, e:
+            if e.name == "runtime_error" and \
+               e.what == "habitat::UnmergeableError":
+                pass
+            else:
+                raise
+        else:
+            raise AssertionError("Did not raise UnmergeableError")

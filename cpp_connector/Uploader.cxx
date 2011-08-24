@@ -131,8 +131,8 @@ string Uploader::payload_telemetry(const string &data,
     if (!data.length())
         throw runtime_error("Can't upload string of zero length");
 
-    string doc_id = sha256hex(data);
     string data_b64 = base64(data);
+    string doc_id = sha256hex(data_b64);
 
     if (time_created == -1)
         time_created = time(NULL);
