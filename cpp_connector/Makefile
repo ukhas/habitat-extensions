@@ -6,6 +6,7 @@ LIBS = -ljsoncpp -lcurl -lpthread
 headers = CouchDB.h EZ.h Uploader.h
 cxxfiles = CouchDB.o EZ.o Uploader.o test_main.o
 binary = cpp_connector
+test_py_file = test_uploader.py
 
 CXXFLAGS = $(CFLAGS)
 objects = $(patsubst %.cxx,%.o,$(cxxfiles))
@@ -16,8 +17,11 @@ objects = $(patsubst %.cxx,%.o,$(cxxfiles))
 $(binary) : $(objects)
 	g++ -o $@ $(objects) $(LIBS)
 
-clean :
-	rm -f $(objects) $(binary)
+test : $(binary) $(test_py_file)
+	nosetests
 
-.PHONY : clean
-.DEFAULT_GOAL := $(binary)
+clean :
+	rm -f $(objects) $(binary) $(patsubst %.py,%.pyc,$(test_py_file))
+
+.PHONY : clean test
+.DEFAULT_GOAL := test
