@@ -20,17 +20,24 @@ class Server;
 
 class Database
 {
+    static const map<string,string> view_default_options;
     Server &server;
     string url;
     friend class Server;
+
+    string make_doc_url(const string &doc_id) const;
 
 public:
     Database(Server &server, const string &db);
     ~Database() {};
 
     void save_doc(Json::Value &doc);
-    Json::Value *get_doc(const string &doc_id);
+    Json::Value *get_doc(const string &doc_id) const;
     Json::Value *operator[](const string &doc_id);
+    Json::Value *view(const string &design_doc, const string &view_name,
+                      const map<string,string> &options=view_default_options)
+                      const;
+    static string json_query_value(Json::Value &value);
 };
 
 class Server
@@ -42,6 +49,8 @@ class Server
 
     string next_uuid();
     friend class Database;
+
+    Json::Value *get_json(const string &get_url);
 
 public:
     Server(const string &url);

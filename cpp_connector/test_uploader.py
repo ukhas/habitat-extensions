@@ -126,8 +126,21 @@ class Proxy:
     def listener_info(self, data, *args):
         return self._proxy(["listener_info", data] + list(args))
 
+    def flights(self):
+        return self._proxy(["flights"])
+
+temp_port = 51205
+
+def next_temp_port():
+    global temp_port
+    temp_port += 1
+    return temp_port
+
 class MockHTTP(BaseHTTPServer.HTTPServer):
-    def __init__(self, server_address=('localhost', 51205), callbacks=None):
+    def __init__(self, server_address=None, callbacks=None):
+        if server_address == None:
+            server_address = ('localhost', next_temp_port())
+
         BaseHTTPServer.HTTPServer.__init__(self, server_address,
                                            MockHTTPHandler)
         self.expecting = False
@@ -246,7 +259,8 @@ class TestCPPConnector:
         self.callbacks = Callbacks()
         self.couchdb = MockHTTP(callbacks=self.callbacks)
         self.uploader = Proxy("PROXYCALL", self.couchdb.url,
-                              callbacks=self.callbacks)
+                              callbacks=self.callbacks,
+                              with_valgrind=True)
         self.uuids = collections.deque()
 
         self.db_path = "/habitat/"
@@ -646,3 +660,20 @@ class TestCPPConnector:
                 raise
         else:
             raise AssertionError("Did not raise UnmergeableError")
+
+    def test_flights(self):
+        flights= [{"_id": "flight_{0}".format(i), "a flight": i}
+                  for i in xrange(100)]
+        rows = [{"id": doc["_id"], "key": None, "value": doc}
+                for doc in flights]
+        fake_view_response ={"total_rows": len(rows), "offset": 0, "rows": rows}
+
+        self.couchdb.expect_request(
+            path=self.db_path + "_design/habitat/_view/flights",
+            code=200,
+            respond_json=copy.deepcopy(fake_view_response)
+        )
+        self.couchdb.run()
+
+        result = self.uploader.flights()
+        assert result == flights

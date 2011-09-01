@@ -15,7 +15,7 @@ objects = $(patsubst %.cxx,%.o,$(cxxfiles))
 	g++ -c $(CXXFLAGS) -o $@ $<
 
 $(binary) : $(objects)
-	g++ -o $@ $(objects) $(LIBS)
+	g++ $(CXXFLAGS) -o $@ $(objects) $(LIBS)
 
 test : $(binary) $(test_py_file)
 	nosetests

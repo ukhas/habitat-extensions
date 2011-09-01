@@ -82,6 +82,35 @@ string *cURL::escape(const string &s)
     return result_string;
 }
 
+string cURL::query_string(const map<string,string> &options,
+                          bool add_questionmark)
+{
+    string result;
+
+    if (add_questionmark)
+        result.append("?");
+
+    map<string,string>::const_iterator it;
+
+    for (it = options.begin(); it != options.end(); it++)
+    {
+        if (it != options.begin())
+            result.append("&");
+
+        string *key_escaped = escape((*it).first);
+        auto_ptr<string> destroyer_1(key_escaped);
+
+        string *value_escaped = escape((*it).second);
+        auto_ptr<string> destroyer_2(value_escaped);
+
+        result.append(*key_escaped);
+        result.append("=");
+        result.append(*value_escaped);
+    }
+
+    return result;
+}
+
 void cURL::reset()
 {
     curl_easy_reset(curl);
