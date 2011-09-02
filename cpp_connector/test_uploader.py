@@ -666,7 +666,8 @@ class TestCPPConnector:
                   for i in xrange(100)]
         rows = [{"id": doc["_id"], "key": None, "value": doc}
                 for doc in flights]
-        fake_view_response ={"total_rows": len(rows), "offset": 0, "rows": rows}
+        fake_view_response = \
+                {"total_rows": len(rows), "offset": 0, "rows": rows}
 
         self.couchdb.expect_request(
             path=self.db_path + "_design/habitat/_view/flights",
