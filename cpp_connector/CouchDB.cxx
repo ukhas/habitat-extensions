@@ -34,8 +34,9 @@ static string database_url(const string &server_url, const string &db)
     string url(server_url);
 
     string *db_escaped = EZ::cURL::escape(db);
+    auto_ptr<string> destroyer(db_escaped);
+
     url += *db_escaped;
-    delete db_escaped;
 
     if (*(db.rbegin()) != '/')
         url += '/';
