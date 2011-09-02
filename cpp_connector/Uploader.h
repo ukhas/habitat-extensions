@@ -32,10 +32,10 @@ public:
 class Uploader
 {
     EZ::Mutex mutex;
-    string callsign;
+    const string callsign;
     CouchDB::Server server;
     CouchDB::Database database;
-    int max_merge_attempts;
+    const int max_merge_attempts;
     string latest_listener_info;
     string latest_listener_telemetry;
 
