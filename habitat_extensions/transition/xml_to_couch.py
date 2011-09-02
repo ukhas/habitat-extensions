@@ -108,6 +108,9 @@ for field in tree.getiterator("field"):
         "type": type_map.get(field.findtext("datatype"), "base.ascii_string")
     }
     
+    if new_field["name"] == "cycle_count":
+        new_field["name"] = "count"
+
     if field.findtext("dbfield") in ("latitude", "longitude"):
         if field.findtext("format"):
             new_field["format"] = field.findtext("format")
