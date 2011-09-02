@@ -23,6 +23,10 @@ from urllib import urlencode
 from urllib2 import urlopen
 import logging
 import couchdbkit
+import traceback
+import threading
+import Queue
+import copy
 from . import config
 
 __all__ = ["SpaceNearUsSink"]
@@ -38,11 +42,23 @@ class SpaceNearUs:
         server = couchdbkit.Server(couch_settings["couch_uri"])
         self.db = server[couch_settings["couch_db"]]
 
+        self.recent_doc_ids = []
+        self.recent_doc_receivers = {}
+
+        self.upload_queue = Queue.Queue()
+        self.recent_lock = threading.RLock()
+
     def run(self):
         """
         Start a continuous connection to CouchDB's _changes feed, watching for
         new unparsed telemetry.
         """
+
+        for i in xrange(5):
+            t = threading.Thread(target=self.uploader_thread)
+            t.daemon = True
+            t.start()
+
         update_seq = self.db.info()["update_seq"]
 
         consumer = couchdbkit.Consumer(self.db)
@@ -67,7 +83,6 @@ class SpaceNearUs:
     def payload_telemetry(self, doc):
         fields = {
             "vehicle": "payload",
-            "time": "time",
             "lat": "latitude",
             "lon": "longitude",
             "alt": "altitude",
@@ -87,20 +102,43 @@ class SpaceNearUs:
             logger.warning("ignoring doc where data is not a dict")
             return
 
-        # XXX: Crude hack!
-        receivers = doc["receivers"].items()
-        receivers.sort(key=lambda x: x[1]["time_uploaded"])
-        last_callsign = receivers[-1][0]
+        with self.recent_lock:
+            doc_id = doc["_id"]
+            if doc_id in self.recent_doc_receivers:
+                new_receivers = set(doc["receivers"].keys()) - \
+                                set(self.recent_doc_receivers[doc_id])
+                self.recent_doc_receivers[doc_id] = doc["receivers"].keys()
+                if len(new_receivers) == 0:
+                    logger.warning("ignoring doc due to no new receivers")
+                    return
+            else:
+                # WARNING: the uploader will re-upload every single callsign
+                # if it encounters a doc it had forgotten.
+                if len(self.recent_doc_ids) > 30:
+                    remove_doc_ids = self.recent_doc_ids[:-30]
+                    self.recent_doc_ids = self.recent_doc_ids[-30:]
+                    for i in remove_doc_ids:
+                        del self.recent_doc_receivers[i]
+                self.recent_doc_ids.append(doc_id)
+                self.recent_doc_receivers[doc_id] = doc["receivers"].keys()
+                new_receivers = doc["receivers"].keys()
 
         params = {}
 
-        timestr = "{hour:02d}{minute:02d}{second:02d}"
-        params["time"] = timestr.format(**data["time"])
-
         self._copy_fields(fields, data, params)
-        params["callsign"] = last_callsign
+
+        try:
+            timestr = "{hour:02d}{minute:02d}{second:02d}"
+            params["time"] = timestr.format(**data["time"])
+        except KeyError:
+            pass
+
         params["pass"] = "aurora"
-        self._post_to_track(params)
+
+        for callsign in new_receivers:
+            p = copy.deepcopy(params)
+            p["callsign"] = callsign
+            self.upload_queue.put(p)
 
     def listener_telemetry(self, doc):
         fields = {
@@ -124,12 +162,22 @@ class SpaceNearUs:
 
         params = {}
 
-        timestr = "{hour:02d}:{minute:02d}:{second:02d}"
-        params["time"] = timestr.format(**data["time"])
-
         self._copy_fields(fields, data, params)
+
+        try:
+            timestr = "{hour:02d}:{minute:02d}:{second:02d}"
+            params["time"] = timestr.format(**data["time"])
+        except KeyError:
+            pass
+
         params["pass"] = "aurora"
-        self._post_to_track(params)
+        self.upload_queue.put(params)
+
+    def uploader_thread(self):
+        while True:
+            params = self.upload_queue.get()
+            self._post_to_track(params)
+            self.upload_queue.task_done()
 
     def _copy_fields(self, fields, data, params):
         for (tgt, src) in fields.items():
