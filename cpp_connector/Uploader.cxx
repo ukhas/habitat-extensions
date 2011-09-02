@@ -242,7 +242,7 @@ string Uploader::listener_info(const Json::Value &data, int time_created)
     return latest_listener_info;
 }
 
-vector<Json::Value> *Uploader::flights() const
+vector<Json::Value> *Uploader::flights()
 {
     Json::Value *response = database.view("habitat", "flights");
     auto_ptr<Json::Value> response_destroyer(response);

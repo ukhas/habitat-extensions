@@ -32,11 +32,10 @@ public:
     ~Database() {};
 
     void save_doc(Json::Value &doc);
-    Json::Value *get_doc(const string &doc_id) const;
+    Json::Value *get_doc(const string &doc_id);
     Json::Value *operator[](const string &doc_id);
     Json::Value *view(const string &design_doc, const string &view_name,
-                      const map<string,string> &options=view_default_options)
-                      const;
+                      const map<string,string> &options=view_default_options);
     static string json_query_value(Json::Value &value);
 };
 

@@ -177,13 +177,13 @@ void Database::save_doc(Json::Value &doc)
     doc["_rev"] = new_rev;
 }
 
-Json::Value *Database::get_doc(const string &doc_id) const
+Json::Value *Database::get_doc(const string &doc_id)
 {
     return server.get_json(make_doc_url(doc_id));
 }
 
 Json::Value *Database::view(const string &design_doc, const string &view_name,
-                            const map<string,string> &options) const
+                            const map<string,string> &options)
 {
     string view_url(url);
 
