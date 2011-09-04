@@ -135,7 +135,7 @@ class SpaceNearUs:
             pass
 
         unused_data = {}
-        used_keys = set(fields.keys() + ["time"])
+        used_keys = set(fields.values() + ["time"])
         unused_keys = set(data.keys()) - used_keys
 
         for key in unused_keys:
