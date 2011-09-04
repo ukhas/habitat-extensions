@@ -6,6 +6,7 @@
 #include <string>
 #include <iostream>
 #include <stdexcept>
+#include <map>
 #include <curl/curl.h>
 
 using namespace std;
@@ -47,6 +48,8 @@ public:
     cURL();
     ~cURL();
     static string *escape(const string &s);
+    static string query_string(const map<string,string> &options,
+                               bool add_questionmark=false);
     string *get(const string &url);
     string *post(const string &url, const string &data);
     string *put(const string &url, const string &data);

@@ -17,8 +17,10 @@ static string proxy_listener_telemetry(habitat::Uploader *u,
                                        Json::Value command);
 static string proxy_payload_telemetry(habitat::Uploader *u,
                                       Json::Value command);
-static void report_result(const string &arg1, const string &arg2="",
-                          const string &arg3="");
+static Json::Value proxy_flights(habitat::Uploader *u);
+static void report_result(const Json::Value &arg1,
+                          const Json::Value &arg2=Json::Value::null,
+                          const Json::Value &arg3=Json::Value::null);
 
 static bool enable_callbacks = false;
 
@@ -53,7 +55,7 @@ int main(int argc, char **argv)
 
         try
         {
-            string return_value;
+            Json::Value return_value;
 
             if (command_name == "init")
                 u.reset(proxy_constructor(command));
@@ -63,6 +65,8 @@ int main(int argc, char **argv)
                 return_value = proxy_listener_telemetry(u.get(), command);
             else if (command_name == "payload_telemetry")
                 return_value = proxy_payload_telemetry(u.get(), command);
+            else if (command_name == "flights")
+                return_value = proxy_flights(u.get());
             else
                 throw runtime_error("invalid command name");
 
@@ -225,18 +229,34 @@ static string proxy_payload_telemetry(habitat::Uploader *u,
         return u->payload_telemetry(data.asString(), metadata, tc.asInt());
 }
 
-static void report_result(const string &arg1, const string &arg2,
-                          const string &arg3)
+static Json::Value proxy_flights(habitat::Uploader *u)
+{
+    vector<Json::Value> *result = u->flights();
+    auto_ptr< vector<Json::Value> > destroyer(result);
+
+    vector<Json::Value>::iterator it;
+    Json::Value json_result(Json::arrayValue);
+
+    for (it = result->begin(); it != result->end(); it++)
+    {
+        json_result.append(*it);
+    }
+
+    return json_result;
+}
+
+static void report_result(const Json::Value &arg1, const Json::Value &arg2,
+                          const Json::Value &arg3)
 {
     Json::Value report(Json::arrayValue);
 
     report.append(arg1);
 
-    if (arg2.length())
+    if (!arg2.isNull())
     {
         report.append(arg2);
 
-        if (arg3.length())
+        if (!arg3.isNull())
         {
             report.append(arg3);
         }
