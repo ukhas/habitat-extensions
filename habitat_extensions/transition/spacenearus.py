@@ -29,7 +29,7 @@ import Queue
 import copy
 from . import config
 
-__all__ = ["SpaceNearUsSink"]
+__all__ = ["SpaceNearUs"]
 logger = logging.getLogger("habitat_extensions.transition.spacenearus")
 
 class SpaceNearUs:
@@ -132,6 +132,16 @@ class SpaceNearUs:
             params["time"] = timestr.format(**data["time"])
         except KeyError:
             pass
+
+        unused_data = {}
+        used_keys = set(fields.keys() + ["time"])
+        unused_keys = set(data.keys()) - used_keys
+
+        for key in unused_keys:
+            if not key.startswith("_"):
+                unused_data[key] = data[key]
+
+        params["data"] = json.dumps(unused_data)
 
         params["pass"] = "aurora"
 
