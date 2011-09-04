@@ -27,6 +27,7 @@ import traceback
 import threading
 import Queue
 import copy
+import json
 from . import config
 
 __all__ = ["SpaceNearUs"]
