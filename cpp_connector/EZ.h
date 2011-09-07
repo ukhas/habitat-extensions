@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <map>
 #include <curl/curl.h>
+#include <pthread.h>
 
 using namespace std;
 
@@ -15,7 +16,9 @@ namespace EZ {
 
 class Mutex
 {
+protected:
     pthread_mutex_t mutex;
+
     friend class MutexLock;
 
 public:

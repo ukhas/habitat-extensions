@@ -2,6 +2,7 @@
 
 #include "EZ.h"
 #include <curl/curl.h>
+#include <pthread.h>
 #include <string>
 #include <memory>
 #include <stdexcept>
@@ -16,9 +17,7 @@ Mutex::Mutex()
     int result = pthread_mutex_init(&mutex, NULL);
 
     if (result != 0)
-    {
         throw runtime_error("Failed to create mutex");
-    }
 }
 
 Mutex::~Mutex()
