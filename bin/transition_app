@@ -7,7 +7,7 @@ root = os.path.realpath(os.path.join(__file__, "../../"))
 
 try:
     import habitat
-except:
+except ImportError:
     # Assumes habitat and habitat_extensions have been cloned in the same parent
     # directory
 
@@ -16,7 +16,7 @@ except:
 
 try:
     import habitat_extensions
-except:
+except ImportError:
     sys.path.append(root)
 
 from habitat_extensions.transition.app import app
