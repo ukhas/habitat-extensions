@@ -162,7 +162,7 @@ class PayloadXML(object):
 
         seq = 2
         for field in self.payload["sentence"]["fields"]:
-            if field["type"] == "stdtelem.coordinate":
+            if field["sensor"] == "stdtelem.coordinate":
                 data_format = field["format"]
             else:
                 data_format = None
