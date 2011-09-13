@@ -10,7 +10,7 @@ require_once "JSON.php";
  */
 
 /* $habitat_url = "http://localhost:5000/%s"; */
-$habitat_url = "http://habitat.habhub.org/testing/%s";
+$habitat_url = "http://habitat.habhub.org/transition/%s";
 
 function habitat($identity, $string)
 {
