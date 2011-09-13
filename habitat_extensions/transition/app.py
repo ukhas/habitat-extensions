@@ -47,7 +47,13 @@ def hello():
     <form action="payload_telemetry" method="POST">
     <h3>payload_telemetry</h3>
     <p>Callsign: <input type="text" name="callsign"></p>
-    <p>String (b64): <input type="text" name="string"></p>
+    <p>
+      String: <input type="text" name="string">
+      <select name="string_type">
+        <option>ascii</option>
+        <option>base64</option>
+      </select>
+    </p>
     <p>Metadata (json): <input type="text" name="metadata" value="{}"></p>
     <p>Time created (int, POSIX): <input type="text" name="time_created"></p>
     <p><input type="submit" value="GO">
@@ -86,9 +92,13 @@ def get_time_created():
 @app.route("/payload_telemetry", methods=["POST"])
 def payload_telemetry():
     callsign = flask.request.form["callsign"]
-    string = base64.b64decode(flask.request.form["string"])
+    string = flask.request.form["string"]
+    string_type = flask.request.form["string_type"]
     metadata = json.loads(flask.request.form["metadata"])
     time_created = get_time_created()
+
+    if string_type == "base64":
+        string = base64.b64decode(string)
 
     assert callsign and string
     assert isinstance(metadata, dict)

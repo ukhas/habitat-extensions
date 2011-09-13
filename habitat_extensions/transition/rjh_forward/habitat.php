@@ -129,6 +129,7 @@ function habitat_payload_telemetry($callsign, $string, $metadata)
     $post_data = array(
         "callsign" => $callsign,
         "string" => base64_encode($string),
+        "string_type" => "base64",
         "metadata" => $json->encode($metadata)
     );
     habitat_flask("payload_telemetry", $post_data);
