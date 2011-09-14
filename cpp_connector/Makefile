@@ -1,12 +1,18 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
 
-CFLAGS = -O2 -Wall -Werror -pedantic
-LIBS = -ljsoncpp -lcurl -lpthread -lssl
-headers = CouchDB.h EZ.h Uploader.h
-cxxfiles = CouchDB.o EZ.o Uploader.o test_main.o
-binary = cpp_connector
+CFLAGS = -pthread -O2 -Wall -Werror -pedantic -Wno-variadic-macros
+LIBS = -pthread -ljsoncpp -lcurl -lssl
+
+headers = CouchDB.h EZ.h Uploader.h UploaderThread.h
+cxxfiles = CouchDB.cxx EZ.cxx Uploader.cxx
 test_py_file = test_uploader.py
+test_threaded_cflags = -DTHREADED
+
+normal_binary = cpp_connector
+normal_objects = test_main.o
+threaded_binary = cpp_connector_threaded
+threaded_objects = UploaderThread.o test_main.threaded.o
 
 CXXFLAGS = $(CFLAGS)
 objects = $(patsubst %.cxx,%.o,$(cxxfiles))
@@ -14,14 +20,22 @@ objects = $(patsubst %.cxx,%.o,$(cxxfiles))
 %.o : %.cxx $(headers)
 	g++ -c $(CXXFLAGS) -o $@ $<
 
-$(binary) : $(objects)
-	g++ $(CXXFLAGS) -o $@ $(objects) $(LIBS)
+%.threaded.o : %.cxx $(headers)
+	g++ -c $(CXXFLAGS) $(test_threaded_cflags) -o $@ $<
 
-test : $(binary) $(test_py_file)
+$(normal_binary) : $(objects) $(normal_objects)
+	g++ $(CXXFLAGS) -o $@ $(objects) $(normal_objects) $(LIBS)
+
+$(threaded_binary) : $(objects) $(threaded_objects)
+	g++ $(CXXFLAGS) -o $@ $(objects) $(threaded_objects) $(LIBS)
+
+test : $(normal_binary) $(threaded_binary) $(test_py_file)
 	nosetests
 
 clean :
-	rm -f $(objects) $(binary) $(patsubst %.py,%.pyc,$(test_py_file))
+	rm -f $(objects) $(normal_objects) $(threaded_objects) \
+	    $(normal_binary) $(threaded_binary) \
+	    $(patsubst %.py,%.pyc,$(test_py_file))
 
 .PHONY : clean test
 .DEFAULT_GOAL := test

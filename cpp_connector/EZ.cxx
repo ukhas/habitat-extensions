@@ -35,15 +35,122 @@ MutexLock::~MutexLock()
     pthread_mutex_unlock(&(m.mutex));
 }
 
-static string http_response_string(long r)
+ConditionVariable::ConditionVariable() : Mutex()
+{
+    int result = pthread_cond_init(&condvar, NULL);
+
+    if (result != 0)
+        throw runtime_error("Failed to create condvar");
+}
+
+ConditionVariable::~ConditionVariable()
+{
+    pthread_cond_destroy(&condvar);
+}
+
+void ConditionVariable::wait()
+{
+    pthread_cond_wait(&condvar, &mutex);
+}
+
+void ConditionVariable::timedwait(const struct timespec *abstime)
+{
+    pthread_cond_timedwait(&condvar, &mutex, abstime);
+}
+
+void ConditionVariable::signal()
+{
+    pthread_cond_signal(&condvar);
+}
+
+void ConditionVariable::broadcast()
+{
+    pthread_cond_broadcast(&condvar);
+}
+
+/* Queue's methods are in UploadThread.h since it's templated */
+
+ThreadAttr::ThreadAttr()
+{
+    int result = pthread_attr_init(&attr);
+
+    if (result != 0)
+        throw runtime_error("Failed to create attr");
+}
+
+ThreadAttr::~ThreadAttr()
+{
+    pthread_attr_destroy(&attr);
+}
+
+SimpleThread::SimpleThread()
+    : started(false), joined(false), exit_arg(NULL)
+    {}
+
+SimpleThread::~SimpleThread()
+{
+    MutexLock lock(mutex);
+
+    if (started && !joined)
+        join();
+}
+
+void *thread_starter(void *arg)
+{
+    SimpleThread *t = static_cast<SimpleThread *>(arg);
+    return t->run();
+}
+
+void SimpleThread::start()
+{
+    MutexLock lock(mutex);
+
+    if (started)
+        return;
+
+    ThreadAttr attr;
+    int result;
+    
+    result = pthread_attr_setdetachstate(&attr.attr, PTHREAD_CREATE_JOINABLE);
+
+    if (result != 0)
+        throw runtime_error("Failed to set detach state");
+
+    result = pthread_create(&thread, &attr.attr, thread_starter, this);
+
+    if (result != 0)
+        throw runtime_error("Failed to create a thread");
+
+    started = true;
+}
+
+void *SimpleThread::join()
+{
+    MutexLock lock(mutex);
+
+    if (!started)
+        throw runtime_error("Cannot join a thread that hasn't started");
+
+    if (joined)
+        return NULL;
+
+    int result = pthread_join(thread, &exit_arg);
+    if (result != 0)
+        throw runtime_error("Failed to join thread");
+
+    joined = true;
+    return exit_arg;
+}
+
+static string http_response_string(long r, string u)
 {
     stringstream ss;
-    ss << "EZ::HTTPResponse: HTTP " << r;
+    ss << "EZ::HTTPResponse: HTTP " << r << " (" << u << ")";
     return ss.str();
 }
 
-HTTPResponse::HTTPResponse(long r)
-    : runtime_error(http_response_string(r)), response_code(r) {}
+HTTPResponse::HTTPResponse(long r, string u)
+    : runtime_error(http_response_string(r, u)), response_code(r), url(u) {}
 
 cURL::cURL()
 {
@@ -60,10 +167,9 @@ cURL::~cURL()
     curl_easy_cleanup(curl);
 }
 
-string *cURL::escape(const string &s)
+string cURL::escape(const string &s)
 {
     char *result;
-    string *result_string;
 
     /* cURL wants a handle passed to easy escape for some reason.
      * As far as I can tell it doesn't use it... */
@@ -75,7 +181,7 @@ string *cURL::escape(const string &s)
     if (result == NULL)
         throw runtime_error("curl_easy_escape failed");
 
-    result_string = new string(result);
+    string result_string(result);
     curl_free(result);
 
     return result_string;
@@ -96,15 +202,12 @@ string cURL::query_string(const map<string,string> &options,
         if (it != options.begin())
             result.append("&");
 
-        string *key_escaped = escape((*it).first);
-        auto_ptr<string> destroyer_1(key_escaped);
+        string key_escaped = escape((*it).first);
+        string value_escaped = escape((*it).second);
 
-        string *value_escaped = escape((*it).second);
-        auto_ptr<string> destroyer_2(value_escaped);
-
-        result.append(*key_escaped);
+        result.append(key_escaped);
         result.append("=");
-        result.append(*value_escaped);
+        result.append(value_escaped);
     }
 
     return result;
@@ -122,7 +225,7 @@ template<typename T> void cURL::setopt(CURLoption option, T parameter)
         throw cURLError(result, "curl_easy_setopt");
 }
 
-string *cURL::get(const string &url)
+string cURL::get(const string &url)
 {
     MutexLock lock(mutex);
 
@@ -130,7 +233,7 @@ string *cURL::get(const string &url)
     return cURL::perform(url);
 }
 
-string *cURL::post(const string &url, const string &data)
+string cURL::post(const string &url, const string &data)
 {
     MutexLock lock(mutex);
 
@@ -168,7 +271,7 @@ static size_t read_func(void *ptr, size_t size, size_t nmemb, void *userdata)
     return write;
 }
 
-string *cURL::put(const string &url, const string &data)
+string cURL::put(const string &url, const string &data)
 {
     MutexLock lock(mutex);
 
@@ -195,13 +298,13 @@ static size_t write_func(char *data, size_t size, size_t nmemb, void *userdata)
     return length;
 }
 
-string *cURL::perform(const string &url)
+string cURL::perform(const string &url)
 {
-    auto_ptr<string> response(new string);
+    string response;
 
     setopt(CURLOPT_URL, url.c_str());
     setopt(CURLOPT_WRITEFUNCTION, write_func);
-    setopt(CURLOPT_WRITEDATA, response.get());
+    setopt(CURLOPT_WRITEDATA, &response);
 
     CURLcode result;
     result = curl_easy_perform(curl);
@@ -214,9 +317,9 @@ string *cURL::perform(const string &url)
         throw cURLError(result, "curl_easy_getinfo");
 
     if (response_code < 200 || response_code > 299)
-        throw HTTPResponse(response_code);
+        throw HTTPResponse(response_code, url);
 
-    return response.release();
+    return response;
 }
 
 } /* namespace EZ */

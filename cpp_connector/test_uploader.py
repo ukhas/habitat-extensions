@@ -1,4 +1,7 @@
 import subprocess
+import os
+import errno
+import fcntl
 import tempfile
 import json
 import elementtree.ElementTree
@@ -35,13 +38,11 @@ class Callbacks:
         return 10000 + value
 
 class Proxy:
-    def __init__(self, callsign, couch_uri=None, couch_db=None,
-                 max_merge_attempts=None,
-                 command="./cpp_connector",
-                 callbacks=None,
-                 with_valgrind=False):
+    def __init__(self, command, callsign, couch_uri=None, couch_db=None,
+                 max_merge_attempts=None, callbacks=None, with_valgrind=False):
 
         self.closed = False
+        self.blocking = True
 
         if with_valgrind:
             self.xmlfile = tempfile.NamedTemporaryFile("a+b")
@@ -56,7 +57,10 @@ class Proxy:
 
 
         self.callbacks = callbacks
+        self.re_init(callsign, couch_uri, couch_db, max_merge_attempts=None)
 
+    def re_init(self, callsign, couch_uri=None, couch_db=None,
+                max_merge_attempts=None):
         init_args = ["init", callsign]
 
         for a in [couch_uri, couch_db, max_merge_attempts]:
@@ -64,16 +68,28 @@ class Proxy:
                 break
             init_args.append(a)
 
-        self._proxy(init_args, False)
+        self._proxy(init_args)
 
-    def _proxy(self, command, get_response=True):
+    def _write(self, command):
+        print ">>", repr(command)
         self.p.stdin.write(json.dumps(command))
         self.p.stdin.write("\n")
 
+    def _read(self):
+        line = self.p.stdout.readline()
+        assert line and line.endswith("\n")
+        obj = json.loads(line)
+
+        print "<<", repr(obj)
+        return obj
+
+    def _proxy(self, command):
+        self._write(command)
+        return self.complete()
+
+    def complete(self):
         while True:
-            line = self.p.stdout.readline()
-            assert line and line.endswith("\n")
-            obj = json.loads(line)
+            obj = self._read()
 
             if obj[0] == "return":
                 if len(obj) == 1:
@@ -86,17 +102,34 @@ class Proxy:
                 else:
                     raise ProxyException(obj[1])
             elif obj[0] == "callback":
-                (cb, name, args) = obj
-                func = getattr(self.callbacks, name)
-                if args:
-                    result = func(args)
+                if len(obj) == 3:
+                    (cb, name, args) = obj
                 else:
-                    result = func()
+                    (cb, name) = obj
+                    args = []
+                func = getattr(self.callbacks, name)
+                result = func(*args)
 
-                self.p.stdin.write(json.dumps(["return", result]))
-                self.p.stdin.write("\n")
+                self._write(["return", result])
+            elif obj[0] == "log":
+                pass
             else:
                 raise AssertionError("invalid response")
+
+    def unblock(self):
+        assert self.blocking
+        self.blocking = False
+
+        fd = self.p.stdout.fileno()
+        self.fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, self.fl | os.O_NONBLOCK)
+
+    def block(self):
+        assert not self.blocking
+        self.blocking = True
+
+        fd = self.p.stdout.fileno()
+        fcntl.fcntl(fd, fcntl.F_SETFL, self.fl)
 
     def __del__(self):
         if not self.closed:
@@ -204,6 +237,8 @@ class MockHTTPHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             raise AssertionError("http request expect", what, a, b)
 
     def check_expect(self):
+        print "-- HTTP " + self.command + " " + self.path
+
         assert self.server.expecting
         e = self.server.expect_queue.popleft()
 
@@ -237,6 +272,12 @@ class MockHTTPHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         else:
             content = e["respond"]
 
+        if "wait" in e:
+            e["wait"].set()
+
+        if "delay" in e:
+            e["delay"].wait()
+
         if "advance_time_after" in e:
             self.server.advance_time(e["advance_time_after"])
 
@@ -255,12 +296,13 @@ class MockHTTPHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     do_PUT = check_expect
 
 class TestCPPConnector:
+    command = "./cpp_connector"
+
     def setup(self):
         self.callbacks = Callbacks()
         self.couchdb = MockHTTP(callbacks=self.callbacks)
-        self.uploader = Proxy("PROXYCALL", self.couchdb.url,
-                              callbacks=self.callbacks,
-                              with_valgrind=True)
+        self.uploader = Proxy(self.command, "PROXYCALL", self.couchdb.url,
+                              callbacks=self.callbacks, with_valgrind=False)
         self.uuids = collections.deque()
 
         self.db_path = "/habitat/"
@@ -293,7 +335,7 @@ class TestCPPConnector:
         if not len(self.uuids):
             self.expect_uuid_request()
 
-    def expect_save_doc(self, doc, rev=None, advance_time_after=0):
+    def expect_save_doc(self, doc, rev=None, **kwargs):
         if not rev:
             rev = 1
 
@@ -303,7 +345,7 @@ class TestCPPConnector:
             body_json=doc,
             code=201,
             respond_json={"id": doc["_id"], "rev": self.gen_fake_rev(rev)},
-            advance_time_after=advance_time_after
+            **kwargs
         )
 
     def test_uses_server_uuids(self):
@@ -678,3 +720,92 @@ class TestCPPConnector:
 
         result = self.uploader.flights()
         assert result == flights
+
+class TestCPPConnectorThreaded(TestCPPConnector):
+    command = "./cpp_connector_threaded"
+
+    def test_queues_things(self):
+        telemetry_data = {"this was queued": True}
+        telemetry_doc = {
+            "_id": self.pop_uuid(),
+            "data": copy.deepcopy(telemetry_data),
+            "type": "listener_telemetry",
+            "time_created": self.callbacks.time_project(0),
+            "time_uploaded": self.callbacks.time_project(0)
+        }
+        telemetry_doc["data"]["callsign"] = "PROXYCALL"
+
+        info_data = {"5": "this was the second item in the queue"}
+        info_doc = {
+            "_id": self.pop_uuid(),
+            "data": copy.deepcopy(info_data),
+            "type": "listener_info",
+            "time_created": self.callbacks.time_project(0),
+            "time_uploaded": self.callbacks.time_project(0)
+        }
+        info_doc["data"]["callsign"] = "PROXYCALL"
+
+        delay_one = threading.Event()
+        wait_one = threading.Event()
+        delay_two = threading.Event()
+        wait_two = threading.Event()
+
+        self.expect_save_doc(telemetry_doc, delay=delay_one, wait=wait_one)
+        self.expect_save_doc(info_doc, delay=delay_two, wait=wait_two)
+
+        self.couchdb.run()
+
+        self.run_unblocked(self.uploader.listener_telemetry, telemetry_data)
+        self.run_unblocked(self.uploader.listener_info, info_data)
+
+        # The complexity of doing this properly justifies this evil hack...
+        # right?
+        while not wait_one.is_set():
+            wait_one.wait(0.1)
+            self.run_unblocked(self.uploader.complete)
+
+        delay_one.set()
+        assert self.uploader.complete() == telemetry_doc["_id"]
+
+        while not wait_two.is_set():
+            wait_two.wait(0.01)
+            self.run_unblocked(self.uploader.complete)
+
+        delay_two.set()
+        assert self.uploader.complete() == info_doc["_id"]
+
+        self.couchdb.check()
+
+    def run_unblocked(self, func, *args, **kwargs):
+        self.uploader.unblock()
+
+        try:
+            return func(*args, **kwargs)
+        except IOError as e:
+            if e.errno != errno.EAGAIN:
+                raise
+        else:
+            raise AssertionError("expected IOError(EAGAIN)")
+
+        self.uploader.block()
+
+    def test_changes_settings(self):
+        self.uploader.re_init("NEWCALL", self.couchdb.url)
+
+        receiver_info = {
+            "time_created": self.callbacks.time_project(0),
+            "time_uploaded": self.callbacks.time_project(0),
+        }
+
+        doc = copy.deepcopy(self.ptlm_doc)
+        doc["receivers"]["PROXYCALL"].update(receiver_info)
+        doc["receivers"]["NEWCALL"] = doc["receivers"]["PROXYCALL"]
+        del doc["receivers"]["PROXYCALL"]
+
+        self.expect_save_doc(doc)
+        self.couchdb.run()
+        ret_doc_id = self.uploader.payload_telemetry(self.ptlm_string,
+                                                     self.ptlm_metadata)
+        self.couchdb.check()
+
+        assert ret_doc_id == self.ptlm_doc_id
