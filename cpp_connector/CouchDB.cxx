@@ -21,7 +21,7 @@ static string server_url(const string &url)
     string url_ts(url);
 
     if (*(url.rbegin()) != '/')
-        url_ts += '/';
+        url_ts.append("/");
 
     return url_ts;
 }
@@ -32,14 +32,10 @@ static string database_url(const string &server_url, const string &db)
         throw invalid_argument("DB of zero length");
 
     string url(server_url);
-
-    string *db_escaped = EZ::cURL::escape(db);
-    auto_ptr<string> destroyer(db_escaped);
-
-    url += *db_escaped;
+    url.append(EZ::cURL::escape(db));
 
     if (*(db.rbegin()) != '/')
-        url += '/';
+        url.append("/");
 
     return url;
 }
@@ -88,13 +84,11 @@ Json::Value *Server::get_json(const string &get_url)
     Json::Value *doc = new Json::Value;
     auto_ptr<Json::Value> value_destroyer(doc);
 
-    string *response = curl.get(get_url);
-    auto_ptr<string> response_destroyer(response);
+    string response = curl.get(get_url);
 
-    if (!reader.parse(*response, *doc, false))
+    if (!reader.parse(response, *doc, false))
         throw runtime_error("JSON Parsing error");
 
-    response_destroyer.reset();
     value_destroyer.release();
 
     return doc;
@@ -103,12 +97,7 @@ Json::Value *Server::get_json(const string &get_url)
 string Database::make_doc_url(const string &doc_id) const
 {
     string doc_url(url);
-
-    string *doc_id_escaped = EZ::cURL::escape(doc_id);
-    auto_ptr<string> destroyer(doc_id_escaped);
-
-    doc_url.append(*doc_id_escaped);
-
+    doc_url.append(EZ::cURL::escape(doc_id));
     return doc_url;
 }
 
@@ -139,13 +128,11 @@ void Database::save_doc(Json::Value &doc)
 
     string doc_url = make_doc_url(doc_id);
 
-    string *response;
-    auto_ptr<string> response_destroyer;
+    string response;
 
     try
     {
         response = server.curl.put(doc_url, json_doc);
-        response_destroyer.reset(response);
     }
     catch (EZ::HTTPResponse e)
     {
@@ -160,10 +147,8 @@ void Database::save_doc(Json::Value &doc)
     Json::Reader reader;
     Json::Value info;
 
-    if (!reader.parse(*response, info, false))
+    if (!reader.parse(response, info, false))
         throw runtime_error("JSON Parsing error");
-
-    response_destroyer.reset();
 
     const Json::Value &new_id = info["id"];
     const Json::Value &new_rev = info["rev"];
@@ -190,11 +175,7 @@ Json::Value *Database::view(const string &design_doc, const string &view_name,
     if (design_doc.length())
     {
         view_url.append("_design/");
-
-        string *design_doc_escaped = EZ::cURL::escape(design_doc);
-        auto_ptr<string> destroyer(design_doc_escaped);
-
-        view_url.append(*design_doc_escaped);
+        view_url.append(EZ::cURL::escape(design_doc));
         view_url.append("/_view/");
     }
 

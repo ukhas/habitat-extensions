@@ -118,7 +118,7 @@ class cURL
 
     /* You need to hold the mutex to use these four functions */
     void reset();
-    string *perform(const string &url);
+    string perform(const string &url);
     template<typename T> void setopt(CURLoption option, T paramater);
     void setopt(CURLoption option, void *paramater);
     void setopt(CURLoption option, long parameter);
@@ -126,12 +126,12 @@ class cURL
 public:
     cURL();
     ~cURL();
-    static string *escape(const string &s);
+    static string escape(const string &s);
     static string query_string(const map<string,string> &options,
                                bool add_questionmark=false);
-    string *get(const string &url);
-    string *post(const string &url, const string &data);
-    string *put(const string &url, const string &data);
+    string get(const string &url);
+    string post(const string &url, const string &data);
+    string put(const string &url, const string &data);
 };
 
 class cURLGlobal

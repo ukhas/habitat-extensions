@@ -167,10 +167,9 @@ cURL::~cURL()
     curl_easy_cleanup(curl);
 }
 
-string *cURL::escape(const string &s)
+string cURL::escape(const string &s)
 {
     char *result;
-    string *result_string;
 
     /* cURL wants a handle passed to easy escape for some reason.
      * As far as I can tell it doesn't use it... */
@@ -182,7 +181,7 @@ string *cURL::escape(const string &s)
     if (result == NULL)
         throw runtime_error("curl_easy_escape failed");
 
-    result_string = new string(result);
+    string result_string(result);
     curl_free(result);
 
     return result_string;
@@ -203,15 +202,12 @@ string cURL::query_string(const map<string,string> &options,
         if (it != options.begin())
             result.append("&");
 
-        string *key_escaped = escape((*it).first);
-        auto_ptr<string> destroyer_1(key_escaped);
+        string key_escaped = escape((*it).first);
+        string value_escaped = escape((*it).second);
 
-        string *value_escaped = escape((*it).second);
-        auto_ptr<string> destroyer_2(value_escaped);
-
-        result.append(*key_escaped);
+        result.append(key_escaped);
         result.append("=");
-        result.append(*value_escaped);
+        result.append(value_escaped);
     }
 
     return result;
@@ -229,7 +225,7 @@ template<typename T> void cURL::setopt(CURLoption option, T parameter)
         throw cURLError(result, "curl_easy_setopt");
 }
 
-string *cURL::get(const string &url)
+string cURL::get(const string &url)
 {
     MutexLock lock(mutex);
 
@@ -237,7 +233,7 @@ string *cURL::get(const string &url)
     return cURL::perform(url);
 }
 
-string *cURL::post(const string &url, const string &data)
+string cURL::post(const string &url, const string &data)
 {
     MutexLock lock(mutex);
 
@@ -275,7 +271,7 @@ static size_t read_func(void *ptr, size_t size, size_t nmemb, void *userdata)
     return write;
 }
 
-string *cURL::put(const string &url, const string &data)
+string cURL::put(const string &url, const string &data)
 {
     MutexLock lock(mutex);
 
@@ -302,13 +298,13 @@ static size_t write_func(char *data, size_t size, size_t nmemb, void *userdata)
     return length;
 }
 
-string *cURL::perform(const string &url)
+string cURL::perform(const string &url)
 {
-    auto_ptr<string> response(new string);
+    string response;
 
     setopt(CURLOPT_URL, url.c_str());
     setopt(CURLOPT_WRITEFUNCTION, write_func);
-    setopt(CURLOPT_WRITEDATA, response.get());
+    setopt(CURLOPT_WRITEDATA, &response);
 
     CURLcode result;
     result = curl_easy_perform(curl);
@@ -323,7 +319,7 @@ string *cURL::perform(const string &url)
     if (response_code < 200 || response_code > 299)
         throw HTTPResponse(response_code, url);
 
-    return response.release();
+    return response;
 }
 
 } /* namespace EZ */
