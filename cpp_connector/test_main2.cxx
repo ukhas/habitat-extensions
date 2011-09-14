@@ -2,7 +2,7 @@
 #include "EZ.h"
 #include <iostream>
 
-class StderrUploaderThread : public dlfldigi_habitat::UploaderThread
+class StderrUploaderThread : public habitat::UploaderThread
 {
     void log(const string &message)
     {
@@ -23,7 +23,7 @@ int main(int argc, char **argv)
 {
     EZ::cURLGlobal cgl;
     //StderrUploaderThread thread;
-    dlfldigi_habitat::UploaderThread thread;
+    habitat::UploaderThread thread;
 
     thread.settings("DANIEL_ASYNC", "http://localhost:5984", "habitat");
     thread.payload_telemetry("Hello from C++ UploaderThread");

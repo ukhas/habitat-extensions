@@ -1,125 +1,8 @@
 #include "UploaderThread.h"
 #include <stdexcept>
 #include <sstream>
-#include <pthread.h>
 
-namespace EZ {
-
-ConditionVariable::ConditionVariable() : Mutex()
-{
-    int result = pthread_cond_init(&condvar, NULL);
-
-    if (result != 0)
-        throw runtime_error("Failed to create condvar");
-}
-
-ConditionVariable::~ConditionVariable()
-{
-    pthread_cond_destroy(&condvar);
-}
-
-void ConditionVariable::wait()
-{
-    pthread_cond_wait(&condvar, &mutex);
-}
-
-void ConditionVariable::timedwait(const struct timespec *abstime)
-{
-    pthread_cond_timedwait(&condvar, &mutex, abstime);
-}
-
-void ConditionVariable::signal()
-{
-    pthread_cond_signal(&condvar);
-}
-
-void ConditionVariable::broadcast()
-{
-    pthread_cond_broadcast(&condvar);
-}
-
-/* Queue's methods are in UploadThread.h since it's templated */
-
-ThreadAttr::ThreadAttr()
-{
-    int result = pthread_attr_init(&attr);
-
-    if (result != 0)
-        throw runtime_error("Failed to create attr");
-}
-
-ThreadAttr::~ThreadAttr()
-{
-    pthread_attr_destroy(&attr);
-}
-
-SimpleThread::SimpleThread()
-    : started(false), joined(false), exit_arg(NULL)
-    {}
-
-SimpleThread::~SimpleThread()
-{
-    MutexLock lock(mutex);
-
-    if (started && !joined)
-        join();
-}
-
-void *thread_starter(void *arg)
-{
-    SimpleThread *t = static_cast<SimpleThread *>(arg);
-    return t->run();
-}
-
-void SimpleThread::start()
-{
-    MutexLock lock(mutex);
-
-    if (started)
-        return;
-
-    ThreadAttr attr;
-    int result;
-    
-    result = pthread_attr_setdetachstate(&attr.attr, PTHREAD_CREATE_JOINABLE);
-
-    if (result != 0)
-        throw runtime_error("Failed to set detach state");
-
-    result = pthread_create(&thread, &attr.attr, thread_starter, this);
-
-    if (result != 0)
-        throw runtime_error("Failed to create a thread");
-
-    started = true;
-}
-
-void *SimpleThread::join()
-{
-    MutexLock lock(mutex);
-
-    if (!started)
-        throw runtime_error("Cannot join a thread that hasn't started");
-
-    if (joined)
-        return NULL;
-
-    int result = pthread_join(thread, &exit_arg);
-    if (result != 0)
-        throw runtime_error("Failed to join thread");
-
-    joined = true;
-    return exit_arg;
-}
-
-void *SimpleThread::run()
-{
-    throw runtime_error("No thread run() provided");
-}
-
-} /* namespace EZ */
-
-namespace dlfldigi_habitat {
+namespace habitat {
 
 void UploaderAction::check(habitat::Uploader *u)
 {
@@ -330,4 +213,4 @@ void UploaderThread::got_flights(const vector<Json::Value> &flights)
     /* Bin silently */
 }
 
-} /* namespace dlfldigi_habitat */
+} /* namespace habitat */

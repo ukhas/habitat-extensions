@@ -7,6 +7,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <map>
+#include <deque>
 #include <curl/curl.h>
 #include <pthread.h>
 
@@ -33,6 +34,81 @@ class MutexLock
 public:
     MutexLock(Mutex &_m);
     ~MutexLock();
+};
+
+class ConditionVariable : public Mutex
+{
+    pthread_cond_t condvar;
+
+public:
+    ConditionVariable();
+    ~ConditionVariable();
+
+    /* You *need* to have the mutex to do this!
+     * Create an EZ::MutexLock on the ConditionVariable */
+    void wait();
+    void timedwait(const struct timespec *abstime);
+    void signal();
+    void broadcast();
+};
+
+template <typename item>
+class Queue
+{
+    ConditionVariable condvar;
+    deque<item> item_deque;
+
+public:
+    void put(item &x);
+    item get();
+};
+
+template <typename item> 
+void Queue<item>::put(item &x)
+{
+    MutexLock lock(condvar);
+    item_deque.push_back(x);
+    condvar.signal();
+}
+
+template <typename item>
+item Queue<item>::get()
+{
+    MutexLock lock(condvar);
+
+    while (!item_deque.size())
+        condvar.wait();
+
+    item x = item_deque.front();
+    item_deque.pop_front();
+    return x;
+}
+
+class ThreadAttr
+{
+    pthread_attr_t attr;
+    friend class SimpleThread;
+
+public:
+    ThreadAttr();
+    ~ThreadAttr();
+};
+
+class SimpleThread
+{
+    Mutex mutex;
+    pthread_t thread;
+    bool started;
+    bool joined;
+    void *exit_arg;
+
+public:
+    SimpleThread();
+    virtual ~SimpleThread();
+
+    virtual void *run();
+    void start();
+    void *join();
 };
 
 class cURL
