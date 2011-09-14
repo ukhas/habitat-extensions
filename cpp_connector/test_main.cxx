@@ -8,27 +8,85 @@
 #include "EZ.h"
 #include "Uploader.h"
 
+#ifdef THREADED
+#include "UploaderThread.h"
+#endif
+
 using namespace std;
 
+template <typename T>
+class SafeValue
+{
+    EZ::Mutex mutex;
+    T value;
+
+public:
+    SafeValue(T init) : value(init) {};
+    ~SafeValue() {};
+    bool get() { EZ::MutexLock lock(mutex); return value; }
+    void set(T v) { EZ::MutexLock lock(mutex); value = v; }
+};
+
 static Json::Value proxy_callback(const string &name, const Json::Value &args);
-static habitat::Uploader *proxy_constructor(Json::Value command);
-static string proxy_listener_info(habitat::Uploader *u, Json::Value command);
-static string proxy_listener_telemetry(habitat::Uploader *u,
-                                       Json::Value command);
-static string proxy_payload_telemetry(habitat::Uploader *u,
-                                      Json::Value command);
-static Json::Value proxy_flights(habitat::Uploader *u);
+static Json::Value repackage_flights(const vector<Json::Value> &flights);
 static void report_result(const Json::Value &arg1,
                           const Json::Value &arg2=Json::Value::null,
                           const Json::Value &arg3=Json::Value::null);
 
-static bool enable_callbacks = false;
+#ifndef THREADED
+typedef habitat::Uploader TestSubject;
+typedef string r_string;
+typedef Json::Value r_json;
+static TestSubject *proxy_constructor(Json::Value command);
+#else
+class TestUploaderThread : public habitat::UploaderThread
+{
+    void log(const string &message) { report_result("log", message); };
+
+    void saved_id(const string &type, const string &id)
+        { report_result("return", id); };
+
+    void initialised() { report_result("return"); };
+
+    void caught_exception(const runtime_error &error)
+        { report_result("error", "runtime_error", error.what()); }
+
+    void caught_exception(const invalid_argument &error)
+        { report_result("error", "invalid_argument", error.what()); }
+
+    void got_flights(const vector<Json::Value> &flights)
+        { report_result("return", repackage_flights(flights)); }
+};
+
+typedef TestUploaderThread TestSubject;
+typedef void r_string;
+typedef void r_json;
+static void proxy_constructor(TestSubject *u, Json::Value command);
+#endif
+
+static r_string proxy_listener_info(TestSubject *u, Json::Value command);
+static r_string proxy_listener_telemetry(TestSubject *u, Json::Value command);
+static r_string proxy_payload_telemetry(TestSubject *u, Json::Value command);
+static r_json proxy_flights(TestSubject *u);
+
+static EZ::cURLGlobal cgl;
+static EZ::Mutex cout_lock;
+static SafeValue<bool> enable_callbacks(false);
+static SafeValue<int> last_time(10000);
+
+#ifdef THREADED
+static EZ::Queue<Json::Value> callback_responses;
+#endif
 
 int main(int argc, char **argv)
 {
-    EZ::cURLGlobal cgl;
-
+#ifndef THREADED
     auto_ptr<habitat::Uploader> u;
+#else
+    enable_callbacks.set(true);
+    TestSubject thread;
+    thread.start();
+#endif
 
     for (;;)
     {
@@ -36,7 +94,12 @@ int main(int argc, char **argv)
         cin.getline(line, 1024);
 
         if (line[0] == '\0')
+        {
+#ifdef THREADED
+            enable_callbacks.set(false);
+#endif
             break;
+        }
 
         Json::Reader reader;
         Json::Value command;
@@ -48,10 +111,12 @@ int main(int argc, char **argv)
             throw runtime_error("Invalid JSON input");
 
         string command_name = command[0u].asString();
+
+#ifndef THREADED
         if (!u.get() && command_name != "init")
             throw runtime_error("You must initialise it first");
 
-        enable_callbacks = true;
+        enable_callbacks.set(true);
 
         try
         {
@@ -91,20 +156,37 @@ int main(int argc, char **argv)
             report_result("error", "unknown_error");
         }
 
-        enable_callbacks = false;
+        enable_callbacks.set(false);
+#else
+        if (command_name == "init")
+            proxy_constructor(&thread, command);
+        else if (command_name == "listener_info")
+            proxy_listener_info(&thread, command);
+        else if (command_name == "listener_telemetry")
+            proxy_listener_telemetry(&thread, command);
+        else if (command_name == "payload_telemetry")
+            proxy_payload_telemetry(&thread, command);
+        else if (command_name == "flights")
+            proxy_flights(&thread);
+        else if (command_name == "return")
+            callback_responses.put(command);
+#endif
     }
+
+#ifdef THREADED
+    thread.shutdown();
+#endif
 
     return 0;
 }
 
 time_t time(time_t *t) throw()
 {
-    static time_t last_time = 10000;
     time_t value;
 
-    if (!enable_callbacks)
+    if (!enable_callbacks.get())
     {
-        value = last_time;
+        value = last_time.get();
     }
     else
     {
@@ -116,7 +198,7 @@ time_t time(time_t *t) throw()
         value = result.asInt();
     }
 
-    last_time = value;
+    last_time.set(value);
 
     if (t)
         *t = value;
@@ -126,14 +208,9 @@ time_t time(time_t *t) throw()
 
 static Json::Value proxy_callback(const string &name, const Json::Value &args)
 {
-    Json::Value request(Json::arrayValue);
-    request.append("callback");
-    request.append(name);
-    request.append(args);
+    report_result("callback", name, args);
 
-    Json::FastWriter writer;
-    cout << writer.write(request);
-
+#ifndef THREADED
     char line[1024];
     cin.getline(line, 1024);
 
@@ -148,50 +225,58 @@ static Json::Value proxy_callback(const string &name, const Json::Value &args)
 
     if (response[0u].asString() != "return")
         throw runtime_error("Callback failed");
+#else
+    Json::Value response = callback_responses.get();
+#endif
 
     return response[1u];
 }
 
+#ifndef THREADED
 static habitat::Uploader *proxy_constructor(Json::Value command)
+#else
+static void proxy_constructor(TestSubject *u, Json::Value command)
+#endif
 {
     const Json::Value &callsign = command[1u];
     const Json::Value &couch_uri = command[2u];
     const Json::Value &couch_db = command[3u];
     const Json::Value &max_merge_attempts = command[4u];
 
-    /* all other args will be verified by the constructor */
-    if (!max_merge_attempts.isNull() &&
-        !max_merge_attempts.isInt())
-    {
+    /* .isString is checked when .asString is used. */
+    if (!max_merge_attempts.isNull() && !max_merge_attempts.isInt())
         throw invalid_argument("max_merge_attempts");
-    }
+
+#ifndef THREADED
+#define construct_it(...) do { return new TestSubject(__VA_ARGS__); } while (0)
+#else
+#define construct_it(...) do { u->settings(__VA_ARGS__); } while (0)
+#endif
 
     if (max_merge_attempts.isNull() && couch_db.isNull() &&
         couch_uri.isNull())
     {
-        return new habitat::Uploader(callsign.asString());
+        construct_it(callsign.asString());
     }
     else if (max_merge_attempts.isNull() && couch_db.isNull())
     {
-        return new habitat::Uploader(callsign.asString(),
-                                     couch_uri.asString());
+        construct_it(callsign.asString(), couch_uri.asString());
     }
     else if (max_merge_attempts.isNull())
     {
-        return new habitat::Uploader(callsign.asString(),
-                                     couch_uri.asString(),
-                                     couch_db.asString());
+        construct_it(callsign.asString(), couch_uri.asString(),
+                     couch_db.asString());
     }
     else
     {
-        return new habitat::Uploader(callsign.asString(),
-                                     couch_uri.asString(),
-                                     couch_db.asString(),
-                                     max_merge_attempts.asInt());
+        construct_it(callsign.asString(), couch_uri.asString(),
+                     couch_db.asString(), max_merge_attempts.asInt());
     }
+
+#undef construct_it
 }
 
-static string proxy_listener_info(habitat::Uploader *u, Json::Value command)
+static r_string proxy_listener_info(TestSubject *u, Json::Value command)
 {
     const Json::Value &data = command[1u];
     const Json::Value &tc = command[2u];
@@ -202,8 +287,7 @@ static string proxy_listener_info(habitat::Uploader *u, Json::Value command)
         return u->listener_info(data, tc.asInt());
 }
 
-static string proxy_listener_telemetry(habitat::Uploader *u,
-                                       Json::Value command)
+static r_string proxy_listener_telemetry(TestSubject *u, Json::Value command)
 {
     const Json::Value &data = command[1u];
     const Json::Value &tc = command[2u];
@@ -214,8 +298,7 @@ static string proxy_listener_telemetry(habitat::Uploader *u,
         return u->listener_telemetry(data, tc.asInt());
 }
 
-static string proxy_payload_telemetry(habitat::Uploader *u,
-                                      Json::Value command)
+static r_string proxy_payload_telemetry(TestSubject *u, Json::Value command)
 {
     const Json::Value &data = command[1u];
     const Json::Value &metadata = command[2u];
@@ -229,20 +312,24 @@ static string proxy_payload_telemetry(habitat::Uploader *u,
         return u->payload_telemetry(data.asString(), metadata, tc.asInt());
 }
 
-static Json::Value proxy_flights(habitat::Uploader *u)
+static r_json proxy_flights(TestSubject *u)
 {
+#ifndef THREADED
     vector<Json::Value> *result = u->flights();
     auto_ptr< vector<Json::Value> > destroyer(result);
+    return repackage_flights(*result);
+#else
+    u->flights();
+#endif
+}
 
-    vector<Json::Value>::iterator it;
-    Json::Value json_result(Json::arrayValue);
-
-    for (it = result->begin(); it != result->end(); it++)
-    {
-        json_result.append(*it);
-    }
-
-    return json_result;
+static Json::Value repackage_flights(const vector<Json::Value> &flights)
+{
+    Json::Value list(Json::arrayValue);
+    vector<Json::Value>::const_iterator it;
+    for (it = flights.begin(); it != flights.end(); it++)
+        list.append(*it);
+    return list;
 }
 
 static void report_result(const Json::Value &arg1, const Json::Value &arg2,
@@ -263,5 +350,10 @@ static void report_result(const Json::Value &arg1, const Json::Value &arg2,
     }
 
     Json::FastWriter writer;
-    cout << writer.write(report);
+
+    {
+        EZ::MutexLock lock(cout_lock);
+        cout << writer.write(report);
+        cout.flush();
+    }
 }

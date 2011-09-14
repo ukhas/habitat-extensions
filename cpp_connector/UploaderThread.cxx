@@ -10,21 +10,11 @@ void UploaderAction::check(habitat::Uploader *u)
         throw runtime_error("Uploader settings were not initialised");
 }
 
-void UploaderAction::apply(UploaderThread &uthr)
-{
-    throw runtime_error("UploaderAction::apply was not overridden");
-}
-
-string UploaderAction::describe()
-{
-    throw runtime_error("UploaderAction::describe was not overridden");
-}
-
 void UploaderSettings::apply(UploaderThread &uthr)
 {
     uthr.uploader.reset(new habitat::Uploader(
         callsign, couch_uri, couch_db, max_merge_attempts));
-    result = "Success";
+    uthr.initialised();
 }
 
 string UploaderSettings::describe()
@@ -38,7 +28,11 @@ string UploaderSettings::describe()
 void UploaderPayloadTelemetry::apply(UploaderThread &uthr)
 {
     check(uthr.uploader.get());
+
+    string result;
     result = uthr.uploader->payload_telemetry(data, metadata, time_created);
+
+    uthr.saved_id("payload_telemetry", result);
 }
 
 string UploaderPayloadTelemetry::describe()
@@ -55,7 +49,8 @@ string UploaderPayloadTelemetry::describe()
 void UploaderListenerTelemetry::apply(UploaderThread &uthr)
 {
     check(uthr.uploader.get());
-    result = uthr.uploader->listener_telemetry(data, time_created);
+    string result = uthr.uploader->listener_telemetry(data, time_created);
+    uthr.saved_id("listener_telemetry", result);
 }
 
 string UploaderListenerTelemetry::describe()
@@ -72,7 +67,8 @@ string UploaderListenerTelemetry::describe()
 void UploaderListenerInfo::apply(UploaderThread &uthr)
 {
     check(uthr.uploader.get());
-    result = uthr.uploader->listener_info(data, time_created);
+    string result = uthr.uploader->listener_info(data, time_created);
+    uthr.saved_id("listener_info", result);
 }
 
 string UploaderListenerInfo::describe()
@@ -92,7 +88,6 @@ void UploaderFlights::apply(UploaderThread &uthr)
     auto_ptr< vector<Json::Value> > flights;
     flights.reset(uthr.uploader->flights());
     uthr.got_flights(*flights);
-    result = "Success";
 }
 
 string UploaderFlights::describe()
@@ -102,7 +97,6 @@ string UploaderFlights::describe()
 
 void UploaderShutdown::apply(UploaderThread &uthr)
 {
-    result = "thrown";
     throw this;
 }
 
@@ -111,10 +105,7 @@ string UploaderShutdown::describe()
     return "Shutdown";
 }
 
-UploaderThread::UploaderThread() : queued_shutdown(false)
-{
-    start();
-}
+UploaderThread::UploaderThread() : queued_shutdown(false) {}
 
 UploaderThread::~UploaderThread()
 {
@@ -176,6 +167,8 @@ void UploaderThread::shutdown()
 
 void *UploaderThread::run()
 {
+    log("Started");
+
     for (;;)
     {
         auto_ptr<UploaderAction> action(queue.get());
@@ -188,29 +181,50 @@ void *UploaderThread::run()
         }
         catch (UploaderShutdown *s)
         {
-            log("Shutting down");
             break;
         }
         catch (runtime_error e)
         {
-            log(string("Caught exception ") + e.what());
+            caught_exception(e);
             continue;
         }
-
-        log("Finished: " + action->result);
+        catch (invalid_argument e)
+        {
+            caught_exception(e);
+            continue;
+        }
     }
+
+    log("Shutting down");
 
     return NULL;
 }
 
-void UploaderThread::log(const string &message)
+void UploaderThread::saved_id(const string &type, const string &id)
 {
-    /* Bin silently */
+    log("Saved " + type + " doc: " + id);
+}
+
+void UploaderThread::initialised()
+{
+    log("Initialised Uploader");
+}
+
+void UploaderThread::caught_exception(const runtime_error &error)
+{
+    const string what(error.what());
+    log("Caught runtime_error: " + what);
+}
+
+void UploaderThread::caught_exception(const invalid_argument &error)
+{
+    const string what(error.what());
+    log("Caught invalid_argument: " + what);
 }
 
 void UploaderThread::got_flights(const vector<Json::Value> &flights)
 {
-    /* Bin silently */
+    log("Default action: got_flights; discarding.");
 }
 
 } /* namespace habitat */

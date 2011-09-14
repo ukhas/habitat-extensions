@@ -142,20 +142,15 @@ void *SimpleThread::join()
     return exit_arg;
 }
 
-void *SimpleThread::run()
-{
-    throw runtime_error("No thread run() provided");
-}
-
-static string http_response_string(long r)
+static string http_response_string(long r, string u)
 {
     stringstream ss;
-    ss << "EZ::HTTPResponse: HTTP " << r;
+    ss << "EZ::HTTPResponse: HTTP " << r << " (" << u << ")";
     return ss.str();
 }
 
-HTTPResponse::HTTPResponse(long r)
-    : runtime_error(http_response_string(r)), response_code(r) {}
+HTTPResponse::HTTPResponse(long r, string u)
+    : runtime_error(http_response_string(r, u)), response_code(r), url(u) {}
 
 cURL::cURL()
 {
@@ -326,7 +321,7 @@ string *cURL::perform(const string &url)
         throw cURLError(result, "curl_easy_getinfo");
 
     if (response_code < 200 || response_code > 299)
-        throw HTTPResponse(response_code);
+        throw HTTPResponse(response_code, url);
 
     return response.release();
 }

@@ -35,11 +35,8 @@ class Callbacks:
         return 10000 + value
 
 class Proxy:
-    def __init__(self, callsign, couch_uri=None, couch_db=None,
-                 max_merge_attempts=None,
-                 command="./cpp_connector",
-                 callbacks=None,
-                 with_valgrind=False):
+    def __init__(self, command, callsign, couch_uri=None, couch_db=None,
+                 max_merge_attempts=None, callbacks=None, with_valgrind=False):
 
         self.closed = False
 
@@ -67,6 +64,7 @@ class Proxy:
         self._proxy(init_args, False)
 
     def _proxy(self, command, get_response=True):
+        print ">>", repr(command)
         self.p.stdin.write(json.dumps(command))
         self.p.stdin.write("\n")
 
@@ -74,6 +72,8 @@ class Proxy:
             line = self.p.stdout.readline()
             assert line and line.endswith("\n")
             obj = json.loads(line)
+
+            print "<<", repr(obj)
 
             if obj[0] == "return":
                 if len(obj) == 1:
@@ -86,15 +86,18 @@ class Proxy:
                 else:
                     raise ProxyException(obj[1])
             elif obj[0] == "callback":
-                (cb, name, args) = obj
-                func = getattr(self.callbacks, name)
-                if args:
-                    result = func(args)
+                if len(obj) == 3:
+                    (cb, name, args) = obj
                 else:
-                    result = func()
+                    (cb, name) = obj
+                    args = []
+                func = getattr(self.callbacks, name)
+                result = func(*args)
 
                 self.p.stdin.write(json.dumps(["return", result]))
                 self.p.stdin.write("\n")
+            elif obj[0] == "log":
+                pass
             else:
                 raise AssertionError("invalid response")
 
@@ -255,12 +258,13 @@ class MockHTTPHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     do_PUT = check_expect
 
 class TestCPPConnector:
+    command = "./cpp_connector"
+
     def setup(self):
         self.callbacks = Callbacks()
         self.couchdb = MockHTTP(callbacks=self.callbacks)
-        self.uploader = Proxy("PROXYCALL", self.couchdb.url,
-                              callbacks=self.callbacks,
-                              with_valgrind=True)
+        self.uploader = Proxy(self.command, "PROXYCALL", self.couchdb.url,
+                              callbacks=self.callbacks, with_valgrind=False)
         self.uuids = collections.deque()
 
         self.db_path = "/habitat/"
@@ -678,3 +682,6 @@ class TestCPPConnector:
 
         result = self.uploader.flights()
         assert result == flights
+
+class TestCPPConnectorThreaded(TestCPPConnector):
+    command = "./cpp_connector_threaded"

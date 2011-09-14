@@ -106,7 +106,7 @@ public:
     SimpleThread();
     virtual ~SimpleThread();
 
-    virtual void *run();
+    virtual void *run() = 0;
     void start();
     void *join();
 };
@@ -173,11 +173,12 @@ public:
 
 class HTTPResponse : public runtime_error
 {
-    HTTPResponse(long r);
+    HTTPResponse(long r, string u);
     friend class cURL;
 
 public:
     const long response_code;
+    const string url;
     ~HTTPResponse() throw() {};
 };
 

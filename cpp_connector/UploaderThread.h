@@ -18,17 +18,16 @@ class UploaderThread;
 class UploaderAction
 {
 protected:
-    string result;
     void check(habitat::Uploader *u);
 
 private:
-    virtual void apply(UploaderThread &uthr);
-    virtual string describe();
+    virtual void apply(UploaderThread &uthr) = 0;
 
     friend class UploaderThread;
 
 public:
     virtual ~UploaderAction() {};
+    virtual string describe() = 0;
 };
 
 class UploaderSettings : public UploaderAction
@@ -44,9 +43,11 @@ class UploaderSettings : public UploaderAction
     ~UploaderSettings() {};
 
     void apply(UploaderThread &uthr);
-    string describe();
 
     friend class UploaderThread;
+
+public:
+    string describe();
 };
 
 class UploaderPayloadTelemetry : public UploaderAction
@@ -61,9 +62,11 @@ class UploaderPayloadTelemetry : public UploaderAction
     ~UploaderPayloadTelemetry() {};
 
     void apply(UploaderThread &uthr);
-    string describe();
 
     friend class UploaderThread;
+
+public:
+    string describe();
 };
 
 class UploaderListenerTelemetry : public UploaderAction
@@ -76,14 +79,16 @@ class UploaderListenerTelemetry : public UploaderAction
     ~UploaderListenerTelemetry() {};
 
     void apply(UploaderThread &uthr);
-    string describe();
 
     friend class UploaderThread;
+
+public:
+    string describe();
 };
 
 class UploaderListenerInfo : public UploaderAction
 {
-    const Json::Value &data;
+    const Json::Value data;
     const int time_created;
 
     UploaderListenerInfo(const Json::Value &da, int tc)
@@ -91,23 +96,29 @@ class UploaderListenerInfo : public UploaderAction
     ~UploaderListenerInfo() {};
 
     void apply(UploaderThread &uthr);
-    string describe();
 
     friend class UploaderThread;
+
+public:
+    string describe();
 };
 
 class UploaderFlights : public UploaderAction
 {
     void apply(UploaderThread &uthr);
-    string describe();
     friend class UploaderThread;
+
+public:
+    string describe();
 };
 
 class UploaderShutdown : public UploaderAction
 {
     void apply(UploaderThread &uthr);
-    string describe();
     friend class UploaderThread;
+
+public:
+    string describe();
 };
 
 class UploaderThread : public EZ::SimpleThread
@@ -145,7 +156,11 @@ public:
     void *run();
     void detach();
 
-    virtual void log(const string &message);
+    virtual void log(const string &message) = 0;
+    virtual void saved_id(const string &type, const string &id);
+    virtual void initialised();
+    virtual void caught_exception(const runtime_error &error);
+    virtual void caught_exception(const invalid_argument &error);
     virtual void got_flights(const vector<Json::Value> &flights);
 };
 
