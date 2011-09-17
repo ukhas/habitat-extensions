@@ -3,16 +3,18 @@
 #ifndef HABITAT_EXTRACTOR_H
 #define HABITAT_EXTRACTOR_H
 
-namespace habitat {
-
 #include <vector>
 #include <json/json.h>
-#include "habitat/UploaderThread.h"
+#include "UploaderThread.h"
+
+using namespace std;
+
+namespace habitat {
 
 enum push_flags
 {
-    PUSH_NONE = 0x00;
-    PUSH_BAUDOT_HACK = 0x01;
+    PUSH_NONE = 0x00,
+    PUSH_BAUDOT_HACK = 0x01
 };
 
 class Extractor;
@@ -22,22 +24,28 @@ class ExtractorManager
     vector<Extractor *> extractors;
 
 public:
-    void skipped(int n);
-    void push(char b, enum push_flags=PUSH_NONE);
-    void add(Extractor &e);
+    UploaderThread &uthr;
 
-    void status(const string &msg);
-    void data(Json::Value &d);
+    ExtractorManager(UploaderThread &u) : uthr(u) {};
+    virtual ~ExtractorManager() {};
+
+    void add(Extractor &e);
+    void skipped(int n);
+    void push(char b, enum push_flags flags=PUSH_NONE);
+
+    virtual void status(const string &msg) = 0;
+    virtual void data(const Json::Value &d) = 0;
 };
 
 class Extractor
 {
 protected:
     ExtractorManager *mgr;
-    friend class ExtractorManager;
+    friend void ExtractorManager::add(Extractor &e);
 
+public:
     virtual void skipped(int n) = 0;
-    virtual void push(char b, enum push_flags) = 0;
+    virtual void push(char b, enum push_flags flags) = 0;
 };
 
 } /* namespace habitat */

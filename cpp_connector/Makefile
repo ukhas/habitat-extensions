@@ -3,40 +3,53 @@
 # Copyright 2011 (C) Daniel Richman. License: GNU GPL 3; see LICENSE.
 
 CFLAGS = -pthread -O2 -Wall -Werror -pedantic -Wno-variadic-macros
-LIBS = -pthread -ljsoncpp -lcurl -lssl
+upl_libs = -pthread -ljsoncpp -lcurl -lssl
+ext_libs = -ljsoncpp
 
-headers = CouchDB.h EZ.h Uploader.h UploaderThread.h
-cxxfiles = CouchDB.cxx EZ.cxx Uploader.cxx
-test_py_file = test_uploader.py
-test_threaded_cflags = -DTHREADED
-
-normal_binary = cpp_connector
-normal_objects = test_uploader_main.o
-threaded_binary = cpp_connector_threaded
-threaded_objects = UploaderThread.o test_uploader_main.threaded.o
+test_py_files = test_uploader.py
+headers = CouchDB.h EZ.h Uploader.h UploaderThread.h \
+          Extractor.h UKHASExtractor.h \
+		  test_extractor_mock_UploaderThread.h
+upl_cxxfiles = CouchDB.cxx EZ.cxx Uploader.cxx
+upl_thr_cflags = -DTHREADED
+upl_nrm_binary = cpp_connector
+upl_nrm_objects = test_uploader_main.o
+upl_thr_binary = cpp_connector_threaded
+upl_thr_objects = UploaderThread.o test_uploader_main.threaded.o
+ext_cxxfiles = Extractor.cxx UKHASExtractor.cxx test_extractor_main.cxx
+ext_binary = extractor
+ext_mock_cflags = -include test_extractor_mock_UploaderThread.h
 
 CXXFLAGS = $(CFLAGS)
-objects = $(patsubst %.cxx,%.o,$(cxxfiles))
+upl_objects = $(patsubst %.cxx,%.o,$(upl_cxxfiles))
+ext_objects = $(patsubst %.cxx,%.ext_mock.o,$(ext_cxxfiles))
 
 %.o : %.cxx $(headers)
 	g++ -c $(CXXFLAGS) -o $@ $<
 
 %.threaded.o : %.cxx $(headers)
-	g++ -c $(CXXFLAGS) $(test_threaded_cflags) -o $@ $<
+	g++ -c $(CXXFLAGS) $(upl_thr_cflags) -o $@ $<
 
-$(normal_binary) : $(objects) $(normal_objects)
-	g++ $(CXXFLAGS) -o $@ $(objects) $(normal_objects) $(LIBS)
+%.ext_mock.o : %.cxx $(headers)
+	g++ -c $(CXXFLAGS) $(ext_mock_cflags) -o $@ $<
 
-$(threaded_binary) : $(objects) $(threaded_objects)
-	g++ $(CXXFLAGS) -o $@ $(objects) $(threaded_objects) $(LIBS)
+$(upl_nrm_binary) : $(upl_objects) $(upl_nrm_objects)
+	g++ $(CXXFLAGS) -o $@ $(upl_objects) $(upl_nrm_objects) $(upl_libs)
 
-test : $(normal_binary) $(threaded_binary) $(test_py_file)
+$(upl_thr_binary) : $(upl_objects) $(upl_thr_objects)
+	g++ $(CXXFLAGS) -o $@ $(upl_objects) $(upl_thr_objects) $(upl_libs)
+
+$(ext_binary) : $(ext_objects)
+	g++ $(CXXFLAGS) -o $@ $(ext_objects) $(ext_libs)
+
+test : $(upl_nrm_binary) $(upl_thr_binary) $(ext_binary) $(test_py_files)
 	nosetests
 
 clean :
-	rm -f $(objects) $(normal_objects) $(threaded_objects) \
-	    $(normal_binary) $(threaded_binary) \
-	    $(patsubst %.py,%.pyc,$(test_py_file))
+	rm -f $(upl_objects) $(upl_nrm_objects) $(upl_thr_objects) \
+	      $(upl_nrm_binary) $(upl_thr_binary) \
+		  $(ext_objects) $(ext_binary) \
+	      $(patsubst %.py,%.pyc,$(test_py_files))
 
 .PHONY : clean test
 .DEFAULT_GOAL := test

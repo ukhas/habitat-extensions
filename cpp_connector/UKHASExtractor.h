@@ -3,22 +3,25 @@
 #ifndef HABITAT_UKHAS_EXTRACTOR_H
 #define HABITAT_UKHAS_EXTRACTOR_H
 
-#include "habitat/Extractor.h"
+#include "Extractor.h"
 
 namespace habitat {
 
 class UKHASExtractor : public Extractor
 {
-    int extracting = false;
-    char last = '\0';
+    int extracting;
+    char last;
     string buffer;
     int garbage_count;
 
     void reset_buffer();
+    Json::Value crude_parse();
 
 public:
+    UKHASExtractor() : extracting(false), last('\0'), garbage_count(0) {};
+    ~UKHASExtractor() {};
     void skipped(int n);
-    void push(char b, enum push_flags=PUSH_NONE);
+    void push(char b, enum push_flags flags);
 };
 
 } /* namespace habitat */

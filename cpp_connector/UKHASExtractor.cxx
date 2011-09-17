@@ -1,6 +1,7 @@
 /* Copyright 2011 (C) Daniel Richman. License: GNU GPL 3; see COPYING. */
 
-#include "habitat/UKHASExtractor.h"
+#include "UKHASExtractor.h"
+#include <json/json.h>
 
 namespace habitat {
 
@@ -17,17 +18,17 @@ void UKHASExtractor::skipped(int n)
         n = 3;
 
     for (int i = 0; i < n; i++)
-        push(0x00);
+        push('\0', PUSH_NONE);
 }
 
-void UKHASExtractor::push(char b, enum push_flags)
+void UKHASExtractor::push(char b, enum push_flags flags)
 {
     if (last == '$' && b == '$')
     {
         /* Start delimiter: "$$" */
         reset_buffer();
-        buffer.append(last);
-        buffer.append(b);
+        buffer.push_back(last);
+        buffer.push_back(b);
 
         garbage_count = 0;
         extracting = true;
@@ -37,19 +38,22 @@ void UKHASExtractor::push(char b, enum push_flags)
     else if (extracting && b == '\n')
     {
         /* End delimiter: "\n" */
-        buffer.append(b);
-        uthr.payload_telemetry(buffer);
+        buffer.push_back(b);
+        mgr->uthr.payload_telemetry(buffer);
 
         mgr->status("UKHAS Extractor: extracted string");
 
-        Json::Value data = crude_parse(buffer);
-
-        if (!data->isNull())
+        Json::Value data = crude_parse();
+        if (!data.isNull())
             mgr->data(data);
     }
     else if (extracting)
     {
-        buffer.append(b);
+        /* baudot doesn't support '*', so we use '#'. */
+        if ((flags & PUSH_BAUDOT_HACK) && b == '#')
+            b = '*';
+
+        buffer.push_back(b);
 
         if (b < 0x20 || b > 0x7E)
             garbage_count++;
@@ -63,6 +67,13 @@ void UKHASExtractor::push(char b, enum push_flags)
     }
 
     last = b;
+}
+
+Json::Value UKHASExtractor::crude_parse()
+{
+    /* Get flight doc from mgr */
+    /* TODO crude parse */
+    return Json::Value::null;
 }
 
 } /* namespace habitat */
