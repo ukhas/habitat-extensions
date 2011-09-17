@@ -1,7 +1,7 @@
 /* Copyright 2011 (C) Daniel Richman. License: GNU GPL 3; see LICENSE. */
 
-#ifndef DLFLDIGI_HABITAT_UPLOADERTHREAD_H
-#define DLFLDIGI_HABITAT_UPLOADERTHREAD_H
+#ifndef HABITAT_UPLOADERTHREAD_H
+#define HABITAT_UPLOADERTHREAD_H
 
 #include "EZ.h"
 #include "Uploader.h"
@@ -166,4 +166,4 @@ public:
 
 } /* namespace habitat */
 
-#endif
+#endif /* HABITAT_UPLOADERTHREAD_H */

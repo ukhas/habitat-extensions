@@ -1,7 +1,7 @@
 /* Copyright 2011 (C) Daniel Richman. License: GNU GPL 3; see LICENSE. */
 
-#ifndef HABITATCPP_EZ_H
-#define HABITATCPP_EZ_H
+#ifndef HABITAT_EZ_H
+#define HABITAT_EZ_H
 
 #include <string>
 #include <iostream>
@@ -184,4 +184,4 @@ public:
 
 } /* namespace EZ */
 
-#endif /* HABITATCPP_EZ_H */
+#endif /* HABITAT_EZ_H */

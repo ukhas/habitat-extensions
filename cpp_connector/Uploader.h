@@ -1,7 +1,7 @@
 /* Copyright 2011 (C) Daniel Richman. License: GNU GPL 3; see LICENSE. */
 
-#ifndef HABITATCPP_UPLOADER_H
-#define HABITATCPP_UPLOADER_H
+#ifndef HABITAT_UPLOADER_H
+#define HABITAT_UPLOADER_H
 
 #include <iostream>
 #include <string>
@@ -58,4 +58,4 @@ public:
 
 } /* namespace habitat */
 
-#endif
+#endif /* HABITAT_UPLOADER_H */

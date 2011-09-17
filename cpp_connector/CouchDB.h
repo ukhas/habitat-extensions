@@ -1,7 +1,7 @@
 /* Copyright 2011 (C) Daniel Richman. License: GNU GPL 3; see LICENSE. */
 
-#ifndef HABITATCPP_COUCHDB_H
-#define HABITATCPP_COUCHDB_H
+#ifndef HABITAT_COUCHDB_H
+#define HABITAT_COUCHDB_H
 
 #include <json/json.h>
 #include <string>
@@ -71,4 +71,4 @@ public:
 
 } /* namespace CouchDB */
 
-#endif /* HABITATCPP_COUCHDB_H */
+#endif /* HABITAT_COUCHDB_H */
