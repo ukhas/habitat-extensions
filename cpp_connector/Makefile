@@ -11,9 +11,9 @@ test_py_file = test_uploader.py
 test_threaded_cflags = -DTHREADED
 
 normal_binary = cpp_connector
-normal_objects = test_main.o
+normal_objects = test_uploader_main.o
 threaded_binary = cpp_connector_threaded
-threaded_objects = UploaderThread.o test_main.threaded.o
+threaded_objects = UploaderThread.o test_uploader_main.threaded.o
 
 CXXFLAGS = $(CFLAGS)
 objects = $(patsubst %.cxx,%.o,$(cxxfiles))
