@@ -1,5 +1,6 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
+# Copyright 2011 (C) Daniel Richman. License: GNU GPL 3; see LICENSE.
 
 CFLAGS = -pthread -O2 -Wall -Werror -pedantic -Wno-variadic-macros
 LIBS = -pthread -ljsoncpp -lcurl -lssl
