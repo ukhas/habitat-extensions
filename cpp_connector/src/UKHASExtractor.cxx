@@ -59,7 +59,7 @@ void UKHASExtractor::push(char b, enum push_flags flags)
             garbage_count++;
 
         /* Sane limits to avoid uploading tonnes of garbage */
-        if (buffer.length() > 1024 || garbage_count > 16)
+        if (buffer.length() > 1000 || garbage_count > 16)
         {
             reset_buffer();
             extracting = false;
