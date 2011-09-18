@@ -2,23 +2,24 @@
 # -*- makefile -*-
 # Copyright 2011 (C) Daniel Richman. License: GNU GPL 3; see LICENSE.
 
-CFLAGS = -pthread -O2 -Wall -Werror -pedantic -Wno-variadic-macros
+CFLAGS = -pthread -O2 -Wall -Werror -pedantic -Wno-variadic-macros -Isrc
 upl_libs = -pthread -ljsoncpp -lcurl -lssl
 ext_libs = -ljsoncpp
 
-test_py_files = test_uploader.py
-headers = CouchDB.h EZ.h Uploader.h UploaderThread.h \
-          Extractor.h UKHASExtractor.h \
-		  test_extractor_mock_UploaderThread.h
-upl_cxxfiles = CouchDB.cxx EZ.cxx Uploader.cxx
+test_py_files = tests/test_uploader.py
+headers = src/CouchDB.h src/EZ.h src/Uploader.h src/UploaderThread.h \
+          src/Extractor.h src/UKHASExtractor.h \
+		  tests/test_extractor_mock_UploaderThread.h
+upl_cxxfiles = src/CouchDB.cxx src/EZ.cxx src/Uploader.cxx
 upl_thr_cflags = -DTHREADED
-upl_nrm_binary = cpp_connector
-upl_nrm_objects = test_uploader_main.o
-upl_thr_binary = cpp_connector_threaded
-upl_thr_objects = UploaderThread.o test_uploader_main.threaded.o
-ext_cxxfiles = Extractor.cxx UKHASExtractor.cxx test_extractor_main.cxx
-ext_binary = extractor
-ext_mock_cflags = -include test_extractor_mock_UploaderThread.h
+upl_nrm_binary = tests/cpp_connector
+upl_nrm_objects = tests/test_uploader_main.o
+upl_thr_binary = tests/cpp_connector_threaded
+upl_thr_objects = src/UploaderThread.o tests/test_uploader_main.threaded.o
+ext_cxxfiles = src/Extractor.cxx src/UKHASExtractor.cxx \
+               tests/test_extractor_main.cxx
+ext_binary = tests/extractor
+ext_mock_cflags = -include tests/test_extractor_mock_UploaderThread.h
 
 CXXFLAGS = $(CFLAGS)
 upl_objects = $(patsubst %.cxx,%.o,$(upl_cxxfiles))

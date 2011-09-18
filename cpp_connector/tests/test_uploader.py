@@ -298,7 +298,7 @@ class MockHTTPHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     do_PUT = check_expect
 
 class TestCPPConnector:
-    command = "./cpp_connector"
+    command = "tests/cpp_connector"
 
     def setup(self):
         self.callbacks = Callbacks()
@@ -724,7 +724,7 @@ class TestCPPConnector:
         assert result == flights
 
 class TestCPPConnectorThreaded(TestCPPConnector):
-    command = "./cpp_connector_threaded"
+    command = "tests/cpp_connector_threaded"
 
     def test_queues_things(self):
         telemetry_data = {"this was queued": True}
