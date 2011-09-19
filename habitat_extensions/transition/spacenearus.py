@@ -164,7 +164,7 @@ class SpaceNearUs:
         data = doc["data"]
         callsign = data["callsign"]
 
-        if "chase" not in callsign:
+        if "chase" not in callsign.lower():
             return
 
         if not isinstance(data, dict):
