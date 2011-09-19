@@ -158,10 +158,14 @@ class SpaceNearUs:
             "lon": "longitude"
         }
 
-        if "data" not in doc or "callsign" not in doc:
+        if "data" not in doc:
             return
 
         data = doc["data"]
+
+        if "callsign" not in data:
+            return
+
         callsign = data["callsign"]
 
         if "chase" not in callsign.lower():
