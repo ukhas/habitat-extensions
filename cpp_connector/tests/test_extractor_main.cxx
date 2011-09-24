@@ -28,6 +28,17 @@ public:
     void data(const Json::Value &d) { write("data", d); };
 };
 
+/* This differs from an auto_ptr: it deletes whatever is pointed to,
+ * even if that pointer changes */
+template<typename T>
+class DeleteLater
+{
+    T **the_pointer;
+public:
+    DeleteLater(T **p) : the_pointer(p) {};
+    ~DeleteLater() { delete *the_pointer; };
+};
+
 void handle_command(const Json::Value &command,
                     JsonIOExtractorManager &manager,
                     habitat::UKHASExtractor &extractor);
@@ -37,6 +48,7 @@ int main(int argc, char **argv)
     habitat::UploaderThread thread;
     JsonIOExtractorManager manager(thread);
     habitat::UKHASExtractor extractor;
+    DeleteLater<Json::Value> destroyer(&(manager.current_payload));
 
     for (;;)
     {
@@ -94,6 +106,11 @@ void handle_command(const Json::Value &command,
             manager.push(arg.asString()[0]);
         else
             throw runtime_error("Invalid JSON input");
+    }
+    else if (command_name == "set_current_payload")
+    {
+        delete manager.current_payload;
+        manager.current_payload = new Json::Value(arg);
     }
     else
     {

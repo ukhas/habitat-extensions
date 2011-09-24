@@ -144,19 +144,8 @@ static vector<string> split(const string &input, const char c)
     return parts;
 }
 
-/* crude_parse is based on the parse() method of
- * habitat.parser_modules.ukhas_parser.UKHASParser */
-Json::Value UKHASExtractor::crude_parse()
+static size_t split_string(const string &buffer)
 {
-    Json::Value try_settings(Json::arrayValue);
-
-    /* If array: multiple settings to try with. */
-    if (mgr->current_payload.isObject())
-        try_settings.append(mgr->current_payload);
-    else if (mgr->current_payload.isArray())
-        try_settings = mgr->current_payload;
-    /* No settings? No problem; we can still test the checksum */
-
     if (buffer.substr(0, 2) != "$$")
         throw runtime_error("String does not begin with $$");
 
@@ -168,29 +157,80 @@ Json::Value UKHASExtractor::crude_parse()
     if (check_length != 2 && check_length != 4)
         throw runtime_error("Invalid checksum length");
 
-    const string data = buffer.substr(2, check_pos - 2);
-    string checksum = buffer.substr(check_pos + 1);
+    return check_pos;
+}
 
+static string examine_checksum(const string &data, const string &checksum_o)
+{
+    string checksum = checksum_o;
     for_each(checksum.begin(), checksum.end(), inplace_toupper);
-
-    /* Warning: cpp_connector only supports xor and crc16-ccitt, which
-     * conveninently are different lengths: */
-    string checksum_name;
 
     if (checksum.length() == 2)
     {
         if (checksum_xor(data) != checksum)
             throw runtime_error("Invalid checksum");
 
-        checksum_name = "xor";
+        return "xor";
     }
     else if (checksum.length() == 4)
     {
         if (checksum_crc16_ccitt(data) != checksum)
             throw runtime_error("Invalid checksum");
 
-        checksum_name = "crc16-ccitt";
+        return "crc16-ccitt";
     }
+    else
+    {
+        throw runtime_error("Invalid checksum length");
+    }
+}
+
+static void extract_fields(Json::Value &data, const Json::Value &fields,
+                           const vector<string> &parts)
+{
+    vector<string>::const_iterator part = parts.begin() + 1;
+    Json::Value::const_iterator field = fields.begin();
+
+    while (field != fields.end() && part != parts.end())
+    {
+        const string key = (*field)["name"].asString();
+        const string value = (*part);
+
+        if (!key.length())
+            throw runtime_error("Invalid configuration (empty field name)");
+
+        if (value.length())
+            data[key] = value;
+
+        field++;
+        part++;
+    }
+}
+
+/* crude_parse is based on the parse() method of
+ * habitat.parser_modules.ukhas_parser.UKHASParser */
+Json::Value UKHASExtractor::crude_parse()
+{
+    Json::Value try_settings(Json::arrayValue);
+
+    /* If array: multiple settings to try with.
+     * No settings? No problem; we can still test the checksum */
+    if (mgr->current_payload != NULL)
+    {
+        if (mgr->current_payload->isObject())
+            try_settings.append(*(mgr->current_payload));
+        else if (mgr->current_payload->isArray())
+            try_settings = *(mgr->current_payload);
+    }
+
+    size_t check_pos = split_string(buffer);
+
+    const string data = buffer.substr(2, check_pos - 2);
+    string checksum = buffer.substr(check_pos + 1);
+
+    /* Warning: cpp_connector only supports xor and crc16-ccitt, which
+     * conveninently are different lengths, so this works. */
+    string checksum_name = examine_checksum(data, checksum);
 
     Json::Value minimalist(Json::objectValue);
     minimalist["_sentence"] = buffer;
@@ -199,52 +239,40 @@ Json::Value UKHASExtractor::crude_parse()
 
     vector<string> parts = split(data, ',');
 
+    if (!parts.size() || !parts[0].size())
+        throw runtime_error("Empty callsign");
+
     /* Silence errors, and only log them if all attempts fail */
     vector<string> errors;
 
     for (Json::Value::iterator it = try_settings.begin();
          it != try_settings.end(); it++)
     {
-        const Json::Value &sentence = (*it);
-        const Json::Value &fields = sentence["fields"];
-
-        if (sentence["checksum"] != checksum_name)
+        try
         {
-            errors.push_back("Wrong checksum type");
-            continue;
-        }
+            const Json::Value &sentence = (*it);
+            const Json::Value &fields = sentence["fields"];
+            const string callsign = try_settings["payload"].asString();
 
-        if (fields.size() != (parts.size() - 1))
+            if (sentence["checksum"] != checksum_name)
+                throw runtime_error("Wrong checksum type");
+
+            if (parts[0] != callsign)
+                throw runtime_error("Incorrect callsign");
+
+            if (fields.size() != (parts.size() - 1))
+                throw runtime_error("Incorrect number of fields");
+
+            Json::Value data(minimalist);
+            data["payload"] = callsign;
+
+            extract_fields(data, fields, parts);
+            return data;
+        }
+        catch (runtime_error e)
         {
-            errors.push_back("Incorrect number of fields");
-            continue;
+            errors.push_back(e.what());
         }
-
-        string callsign = try_settings["payload"].asString();
-
-        if (!callsign.size() || parts[0u] != callsign)
-        {
-            errors.push_back("Incorrect callsign");
-            continue;
-        }
-
-        Json::Value data(minimalist);
-        data["payload"] = callsign;
-
-        vector<string>::const_iterator part = parts.begin() + 1;
-        Json::Value::const_iterator field = fields.begin();
-
-        while (field != fields.end() && part != parts.end())
-        {
-            if ((*part).length() && (*field)["name"].asString().size())
-                data[(*field)["name"].asString()] = (*part);
-
-            field++;
-            part++;
-        }
-
-        /* Successful parse! */
-        break;
     }
 
     /* Couldn't parse using any of the settings... */
