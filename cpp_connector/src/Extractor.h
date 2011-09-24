@@ -25,6 +25,7 @@ class ExtractorManager
 
 public:
     UploaderThread &uthr;
+    Json::Value current_payload;
 
     ExtractorManager(UploaderThread &u) : uthr(u) {};
     virtual ~ExtractorManager() {};

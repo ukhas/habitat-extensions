@@ -34,7 +34,7 @@ class Proxy:
             if e.errno != errno.EAGAIN:
                 raise
         else:
-            raise AssertionError("expected IOError(EAGAIN)")
+            raise AssertionError("expected IOError(EAGAIN), not " + repr(line))
 
         fcntl.fcntl(fd, fcntl.F_SETFL, fl)
 
@@ -97,6 +97,7 @@ class TestExtractorManager:
         self.extr.check_status()
         self.extr.check_upload()
         self.extr.check_status()
+        self.extr.check_status()
 
 class TestUKHASExtractor:
     def setup(self):
@@ -113,6 +114,7 @@ class TestUKHASExtractor:
         self.extr.check_status("UKHAS Extractor: found start delimiter")
 
     def test_extracts(self):
+        self.extr.check_quiet()
         self.extr.push("$$a,simple,test*00\n")
         self.extr.check_status("UKHAS Extractor: found start delimiter")
         self.extr.check_upload("$$a,simple,test*00\n")
@@ -139,18 +141,25 @@ class TestUKHASExtractor:
         self.extr.check_status()
 
         self.extr.push("a" * 1022)
+        self.extr.check_status("UKHAS Extractor: giving up")
         self.extr.check_quiet()
 
         # Should have given up, so a \n won't cause an upload:
         self.extr.push("\n")
         self.extr.check_quiet()
 
+        self.test_extracts()
+
     def test_gives_up_after_16garbage(self):
         self.extr.push("$$")
         self.extr.check_status()
 
         self.extr.push("some,legit,data")
-        self.extr.push("\u0004\u0082more printable data\u009e\u00ff" * 4)
+        self.extr.push("\t some printable data" * 17)
+        self.extr.check_status("UKHAS Extractor: giving up")
+        self.extr.check_quiet()
 
         self.extr.push("\n")
         self.extr.check_quiet()
+
+        self.test_extracts()
