@@ -4,6 +4,17 @@ import fcntl
 import os
 import errno
 
+# Mox-esque class that is 'equal' to another string if the value it is
+# initialised is contained in that string; used to avoid writing out the
+# whole of check_status()
+class EqualIfIn:
+    def __init__(self, test):
+        self.test = test
+    def __eq__(self, rhs):
+        return isinstance(rhs, basestring) and self.test in rhs
+    def __repr__(self):
+        return "<EqIn " + repr(self.test) + ">"
+
 class Proxy:
     def __init__(self, command):
         self.closed = False
@@ -30,11 +41,15 @@ class Proxy:
 
         try:
             line = self.p.stdout.readline()
+            print ">>", line
         except IOError as e:
             if e.errno != errno.EAGAIN:
                 raise
         else:
-            raise AssertionError("expected IOError(EAGAIN), not " + repr(line))
+            # line is '' when EOF; '\n' is an empty line
+            if line != '':
+                raise AssertionError("expected IOError(EAGAIN), not " +
+                                     repr(line))
 
         fcntl.fcntl(fd, fcntl.F_SETFL, fl)
 
@@ -48,6 +63,9 @@ class Proxy:
         for char in data:
             self._write(["push", char])
 
+    def set_current_payload(self, value):
+        self._write(["set_current_payload", value])
+
     def check(self, match):
         obj = self._read()
         assert len(obj) >= len(match)
@@ -60,6 +78,8 @@ class Proxy:
             self.check([name])
 
     def check_status(self, message=None):
+        if message:
+            message = EqualIfIn(message)
         self._check_type("status", message)
 
     def check_data(self, data=None):
@@ -78,6 +98,7 @@ class Proxy:
         ret = self.p.wait()
 
         if check:
+            self.check_quiet()
             assert ret == 0
 
 class TestExtractorManager:
@@ -85,7 +106,6 @@ class TestExtractorManager:
         self.extr = Proxy("tests/extractor")
 
     def teardown(self):
-        self.extr.check_quiet()
         self.extr.close()
 
     def test_management(self):
@@ -94,10 +114,10 @@ class TestExtractorManager:
 
         self.extr.add("UKHASExtractor")
         self.extr.push("$$this,is,a,string\n")
-        self.extr.check_status()
+        self.extr.check_status("start delim")
         self.extr.check_upload()
-        self.extr.check_status()
-        self.extr.check_status()
+        self.extr.check_status("extracted")
+        self.extr.check_status("parse failed")
 
 class TestUKHASExtractor:
     def setup(self):
@@ -111,37 +131,39 @@ class TestUKHASExtractor:
         self.extr.push("$")
         self.extr.check_quiet()
         self.extr.push("$")
-        self.extr.check_status("UKHAS Extractor: found start delimiter")
+        self.extr.check_status("start delim")
 
     def test_extracts(self):
         self.extr.check_quiet()
         self.extr.push("$$a,simple,test*00\n")
-        self.extr.check_status("UKHAS Extractor: found start delimiter")
+        self.extr.check_status("start delim")
         self.extr.check_upload("$$a,simple,test*00\n")
-        self.extr.check_status("UKHAS Extractor: extracted string")
+        self.extr.check_status("extracted")
+        self.extr.check_status("parse failed")
 
     def test_can_restart(self):
         self.extr.push("this is some garbage just to mess things up")
         self.extr.check_quiet()
         self.extr.push("$$")
-        self.extr.check_status()
+        self.extr.check_status("start delim")
 
         self.extr.push("garbage: after seeing the delimiter, we lose signal.")
         self.extr.push("$$")
-        self.extr.check_status()
+        self.extr.check_status("start delim")
         self.extr.check_quiet()
         self.extr.push("helloworld")
         self.extr.check_quiet()
         self.extr.push("\n")
         self.extr.check_upload("$$helloworld\n")
-        self.extr.check_status()
+        self.extr.check_status("extracted")
+        self.extr.check_status("parse failed")
 
     def test_gives_up_after_1k(self):
         self.extr.push("$$")
-        self.extr.check_status()
+        self.extr.check_status("start delim")
 
         self.extr.push("a" * 1022)
-        self.extr.check_status("UKHAS Extractor: giving up")
+        self.extr.check_status("giving up")
         self.extr.check_quiet()
 
         # Should have given up, so a \n won't cause an upload:
@@ -152,14 +174,72 @@ class TestUKHASExtractor:
 
     def test_gives_up_after_16garbage(self):
         self.extr.push("$$")
-        self.extr.check_status()
+        self.extr.check_status("start delim")
 
         self.extr.push("some,legit,data")
         self.extr.push("\t some printable data" * 17)
-        self.extr.check_status("UKHAS Extractor: giving up")
+        self.extr.check_status("giving up")
         self.extr.check_quiet()
 
         self.extr.push("\n")
         self.extr.check_quiet()
 
         self.test_extracts()
+
+    def test_skipped(self):
+        self.extr.check_quiet()
+        self.extr.push("$$some")
+        self.extr.check_status("start delim")
+        self.extr.skipped(5)
+        self.extr.push("data\n")
+        # JsonCPP doesn't support \0 in strings, so the mock UploaderThread
+        # replaces it with \1s
+        self.extr.check_upload("$$some\1\1\1\1\1data\n")
+        self.extr.check_status("extracted")
+        self.extr.check_status("parse failed")
+
+    def basic_data_dict(self, string, callsign):
+        return {"_sentence": string, "_parsed": True, "_basic": True,
+                "_protocol": "UKHAS", "payload": callsign}
+
+    def check_noconfig(self, string, callsign):
+        self.extr.push(string)
+        self.extr.check_status("start delim")
+        self.extr.check_upload()
+        self.extr.check_status("extracted")
+        self.extr.check_status("full parse failed")
+        self.extr.check_data(self.basic_data_dict(string, callsign))
+
+    def test_crude_parse_noconfig_xor(self):
+        self.check_noconfig("$$mypayload,has,a,valid,checksum*1a\n",
+                            "mypayload")
+
+    def test_crude_parse_noconfig_crc16_ccitt(self):
+        self.check_noconfig("$$mypayload,has,a,valid,checksum*1018\n",
+                            "mypayload")
+
+    def test_crude_parse_config(self):
+        self.extr.set_current_payload({
+            "payload": "TESTING",
+            "sentence": {
+                "checksum": "crc16-ccitt",
+                "fields": [
+                    {"name": "field_a"},
+                    {"name": "field_b"},
+                    {"name": "field_c"}
+                ],
+            }
+        })
+        string = "$$TESTING,value_a,value_b,value_c*8C3E\n"
+        self.extr.push(string)
+        self.extr.check_status("start delim")
+        self.extr.check_upload()
+        self.extr.check_status("extracted")
+        self.extr.check_data({"_sentence": string, "_parsed": True,
+                              "_protocol": "UKHAS", "payload": "TESTING",
+                              "field_a": "value_a", "field_b": "value_b",
+                              "field_c": "value_c"})
+
+    # TODO: test field number compare, checksum type compare, multi config, 
+    #            callsign compare, gives up after a billion skipped
+    # TODO: add ddmm.mmmm -> dd.dddd

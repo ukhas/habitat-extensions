@@ -21,8 +21,8 @@ void UKHASExtractor::reset_buffer()
 
 void UKHASExtractor::skipped(int n)
 {
-    if (n > 3)
-        n = 3;
+    if (n > 20)
+        n = 20;
 
     for (int i = 0; i < n; i++)
         push('\0', PUSH_NONE);
@@ -108,13 +108,17 @@ static string checksum_crc16_ccitt(const string &s)
 {
     /* From avr-libc docs: Modified BSD (GPL, BSD, DFSG compatible) */
     uint16_t crc = 0xFFFF;
+
     for (string::const_iterator it = s.begin(); it != s.end(); it++)
     {
-        uint8_t data = (*it);
-        data ^= (crc & 0xFF);
-        data ^= data << 4;
-        crc = ((((uint16_t)data << 8) | (crc >> 8)) ^ (uint8_t)(data >> 4)
-               ^ ((uint16_t)data << 3));
+        crc = crc ^ ((uint16_t (*it)) << 8);
+
+        for (int i = 0; i < 8; i++)
+        {
+            bool s = crc & 0x8000;
+            crc <<= 1;
+            crc ^= (s ? 0x1021 : 0);
+        }
     }
 
     char temp[5];
@@ -144,20 +148,30 @@ static vector<string> split(const string &input, const char c)
     return parts;
 }
 
-static size_t split_string(const string &buffer)
+static void split_string(const string &buffer, string *data, string *checksum)
 {
     if (buffer.substr(0, 2) != "$$")
         throw runtime_error("String does not begin with $$");
 
-    size_t check_pos = buffer.find_last_of('*');
-    if (check_pos == string::npos)
+    if (buffer[buffer.length() - 1] != '\n')
+        throw runtime_error("String does not end with '\\n'");
+
+    size_t pos = buffer.find_last_of('*');
+    if (pos == string::npos)
         throw runtime_error("No checksum");
 
-    size_t check_length = buffer.length() - check_pos - 1;
+    size_t check_start = pos + 1;
+    size_t check_end = buffer.length() - 1;
+    size_t check_length = check_end - check_start;
+
     if (check_length != 2 && check_length != 4)
         throw runtime_error("Invalid checksum length");
 
-    return check_pos;
+    size_t data_start = 2;
+    size_t data_length = pos - data_start;
+
+    *data = buffer.substr(data_start, data_length);
+    *checksum = buffer.substr(check_start, check_length);
 }
 
 static string examine_checksum(const string &data, const string &checksum_o)
@@ -165,24 +179,27 @@ static string examine_checksum(const string &data, const string &checksum_o)
     string checksum = checksum_o;
     for_each(checksum.begin(), checksum.end(), inplace_toupper);
 
+    string expect, name;
+
     if (checksum.length() == 2)
     {
-        if (checksum_xor(data) != checksum)
-            throw runtime_error("Invalid checksum");
-
-        return "xor";
+        expect = checksum_xor(data);
+        name = "xor";
     }
     else if (checksum.length() == 4)
     {
-        if (checksum_crc16_ccitt(data) != checksum)
-            throw runtime_error("Invalid checksum");
-
-        return "crc16-ccitt";
+        expect = checksum_crc16_ccitt(data);
+        name = "crc16-ccitt";
     }
     else
     {
         throw runtime_error("Invalid checksum length");
     }
+
+    if (expect != checksum)
+        throw runtime_error("Invalid checksum: expected " + expect);
+
+    return name;
 }
 
 static void extract_fields(Json::Value &data, const Json::Value &fields,
@@ -207,84 +224,117 @@ static void extract_fields(Json::Value &data, const Json::Value &fields,
     }
 }
 
+static void check_callsign(const Json::Value &settings,
+                           const vector<string> &parts)
+{
+    if (!parts.size() || !parts[0].size())
+        throw runtime_error("Empty callsign");
+
+    if (!settings.isNull())
+    {
+        const string callsign = settings["payload"].asString();
+        if (parts[0] != callsign)
+            throw runtime_error("Incorrect callsign");
+    }
+}
+
+static void cook_basic(Json::Value &basic, const string &buffer,
+                       const string &callsign)
+{
+    basic["_sentence"] = buffer;
+    basic["_protocol"] = "UKHAS";
+    basic["_parsed"] = true;
+    basic["payload"] = callsign;
+}
+
+static void attempt_settings(Json::Value &data, const Json::Value &sentence,
+                             const string &checksum_name,
+                             const vector<string> &parts)
+{
+    const Json::Value &fields = sentence["fields"];
+
+    if (sentence["checksum"] != checksum_name)
+        throw runtime_error("Wrong checksum type");
+
+    if (fields.size() != (parts.size() - 1))
+        throw runtime_error("Incorrect number of fields");
+
+    extract_fields(data, fields, parts);
+}
+
 /* crude_parse is based on the parse() method of
  * habitat.parser_modules.ukhas_parser.UKHASParser */
 Json::Value UKHASExtractor::crude_parse()
 {
-    Json::Value try_settings(Json::arrayValue);
+    const Json::Value *settings_ptr;
+    if (mgr->current_payload)
+        settings_ptr = mgr->current_payload;
+    else
+        settings_ptr = &(Json::Value::null);
 
-    /* If array: multiple settings to try with.
-     * No settings? No problem; we can still test the checksum */
-    if (mgr->current_payload != NULL)
-    {
-        if (mgr->current_payload->isObject())
-            try_settings.append(*(mgr->current_payload));
-        else if (mgr->current_payload->isArray())
-            try_settings = *(mgr->current_payload);
-    }
+    const Json::Value &settings = *settings_ptr;
 
-    size_t check_pos = split_string(buffer);
-
-    const string data = buffer.substr(2, check_pos - 2);
-    string checksum = buffer.substr(check_pos + 1);
+    string data, checksum;
+    split_string(buffer, &data, &checksum);
 
     /* Warning: cpp_connector only supports xor and crc16-ccitt, which
      * conveninently are different lengths, so this works. */
     string checksum_name = examine_checksum(data, checksum);
-
-    Json::Value minimalist(Json::objectValue);
-    minimalist["_sentence"] = buffer;
-    minimalist["_protocol"] = "UKHAS";
-    minimalist["_parsed"] = true;
-
     vector<string> parts = split(data, ',');
+    check_callsign(settings, parts);
 
-    if (!parts.size() || !parts[0].size())
-        throw runtime_error("Empty callsign");
+    Json::Value basic(Json::objectValue);
+    cook_basic(basic, buffer, parts[0]);
+    const Json::Value &sentence = settings["sentence"];
 
-    /* Silence errors, and only log them if all attempts fail */
-    vector<string> errors;
 
-    for (Json::Value::iterator it = try_settings.begin();
-         it != try_settings.end(); it++)
+    /* If array: multiple sentence settings to try with.
+     * No settings? No problem; we can still test the checksum */
+    if (sentence.isArray())
+    {
+        /* Silence errors, and only log them if all attempts fail */
+        vector<string> errors;
+
+        for (Json::Value::iterator it = sentence.begin();
+             it != sentence.end(); it++)
+        {
+            try
+            {
+                Json::Value data(basic);
+                attempt_settings(data, (*it), checksum_name, parts);
+                return data;
+            }
+            catch (runtime_error e)
+            {
+                errors.push_back(e.what());
+            }
+        }
+
+        /* Couldn't parse using any of the settings... */
+        mgr->status("UKHAS Extractor: full parse failed:");
+        for (vector<string>::iterator it = errors.begin();
+             it != errors.end(); it++)
+        {
+            mgr->status("UKHAS Extractor: " + (*it));
+        }
+    }
+    else if (sentence.isObject())
     {
         try
         {
-            const Json::Value &sentence = (*it);
-            const Json::Value &fields = sentence["fields"];
-            const string callsign = try_settings["payload"].asString();
-
-            if (sentence["checksum"] != checksum_name)
-                throw runtime_error("Wrong checksum type");
-
-            if (parts[0] != callsign)
-                throw runtime_error("Incorrect callsign");
-
-            if (fields.size() != (parts.size() - 1))
-                throw runtime_error("Incorrect number of fields");
-
-            Json::Value data(minimalist);
-            data["payload"] = callsign;
-
-            extract_fields(data, fields, parts);
+            Json::Value data(basic);
+            attempt_settings(data, sentence, checksum_name, parts);
             return data;
         }
         catch (runtime_error e)
         {
-            errors.push_back(e.what());
+            mgr->status("UKHAS Extractor: full parse failed: " +
+                        string(e.what()));
         }
     }
 
-    /* Couldn't parse using any of the settings... */
-    mgr->status("UKHAS Extractor: full parse failed::");
-    for (vector<string>::iterator it = errors.begin();
-         it != errors.end(); it++)
-    {
-        mgr->status("UKHAS Extractor: " + (*it));
-    }
-
-    minimalist["_minimalist"] = true;
-    return minimalist;
+    basic["_basic"] = true;
+    return basic;
 }
 
 } /* namespace habitat */
