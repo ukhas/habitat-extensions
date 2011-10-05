@@ -48,6 +48,8 @@ class TestUploaderThread : public habitat::UploaderThread
 
     void initialised() { report_result("return"); };
 
+    void reset_done() { report_result("return"); };
+
     void caught_exception(const runtime_error &error)
         { report_result("error", "runtime_error", error.what()); }
 
@@ -62,6 +64,7 @@ typedef TestUploaderThread TestSubject;
 typedef void r_string;
 typedef void r_json;
 static void proxy_constructor(TestSubject *u, Json::Value command);
+static void proxy_reset(TestSubject *u);
 #endif
 
 static r_string proxy_listener_info(TestSubject *u, Json::Value command);
@@ -160,6 +163,8 @@ int main(int argc, char **argv)
 #else
         if (command_name == "init")
             proxy_constructor(&thread, command);
+        else if (command_name == "reset")
+            proxy_reset(&thread);
         else if (command_name == "listener_info")
             proxy_listener_info(&thread, command);
         else if (command_name == "listener_telemetry")
@@ -275,6 +280,13 @@ static void proxy_constructor(TestSubject *u, Json::Value command)
 
 #undef construct_it
 }
+
+#ifdef THREADED
+static void proxy_reset(TestSubject *u)
+{
+    u->reset();
+}
+#endif
 
 static r_string proxy_listener_info(TestSubject *u, Json::Value command)
 {

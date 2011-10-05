@@ -23,8 +23,19 @@ string UploaderSettings::describe()
 {
     stringstream ss(stringstream::out);
     ss << "Uploader('" << callsign << "', '" << couch_uri << "', '"
-       << couch_db << "', '" << max_merge_attempts << ")";
+       << couch_db << "', " << max_merge_attempts << ")";
     return ss.str();
+}
+
+void UploaderReset::apply(UploaderThread &uthr)
+{
+    uthr.uploader.reset();
+    uthr.reset_done();
+}
+
+string UploaderReset::describe()
+{
+    return "~Uploader()";
 }
 
 void UploaderPayloadTelemetry::apply(UploaderThread &uthr)
@@ -132,6 +143,11 @@ void UploaderThread::settings(const string &callsign, const string &couch_uri,
     );
 }
 
+void UploaderThread::reset()
+{
+    queue_action(new UploaderReset());
+}
+
 void UploaderThread::payload_telemetry(const string &data,
                                        const Json::Value &metadata,
                                        int time_created)
@@ -210,6 +226,11 @@ void UploaderThread::saved_id(const string &type, const string &id)
 void UploaderThread::initialised()
 {
     log("Initialised Uploader");
+}
+
+void UploaderThread::reset_done()
+{
+    log("Settings reset");
 }
 
 void UploaderThread::caught_exception(const runtime_error &error)

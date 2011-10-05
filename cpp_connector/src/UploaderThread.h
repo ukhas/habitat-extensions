@@ -50,6 +50,19 @@ public:
     string describe();
 };
 
+class UploaderReset: public UploaderAction
+{
+    UploaderReset() {};
+    ~UploaderReset() {};
+
+    void apply(UploaderThread &uthr);
+
+    friend class UploaderThread;
+
+public:
+    string describe();
+};
+
 class UploaderPayloadTelemetry : public UploaderAction
 {
     const string data;
@@ -132,6 +145,7 @@ class UploaderThread : public EZ::SimpleThread
 
     friend class UploaderAction;
     friend class UploaderSettings;
+    friend class UploaderReset;
     friend class UploaderPayloadTelemetry;
     friend class UploaderListenerTelemetry;
     friend class UploaderListenerInfo;
@@ -145,6 +159,7 @@ public:
                   const string &couch_uri="http://habhub.org",
                   const string &couch_db="habitat",
                   int max_merge_attempts=20);
+    void reset();
     void payload_telemetry(const string &data,
                            const Json::Value &metadata=Json::Value::null,
                            int time_created=-1);
@@ -159,6 +174,7 @@ public:
     virtual void log(const string &message) = 0;
     virtual void saved_id(const string &type, const string &id);
     virtual void initialised();
+    virtual void reset_done();
     virtual void caught_exception(const runtime_error &error);
     virtual void caught_exception(const invalid_argument &error);
     virtual void got_flights(const vector<Json::Value> &flights);
