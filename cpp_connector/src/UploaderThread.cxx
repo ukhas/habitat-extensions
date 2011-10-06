@@ -218,6 +218,11 @@ void *UploaderThread::run()
     return NULL;
 }
 
+void UploaderThread::warning(const string &message)
+{
+    log("Warning: " + message);
+}
+
 void UploaderThread::saved_id(const string &type, const string &id)
 {
     log("Saved " + type + " doc: " + id);
@@ -236,13 +241,13 @@ void UploaderThread::reset_done()
 void UploaderThread::caught_exception(const runtime_error &error)
 {
     const string what(error.what());
-    log("Caught runtime_error: " + what);
+    warning("Caught runtime_error: " + what);
 }
 
 void UploaderThread::caught_exception(const invalid_argument &error)
 {
     const string what(error.what());
-    log("Caught invalid_argument: " + what);
+    warning("Caught invalid_argument: " + what);
 }
 
 void UploaderThread::got_flights(const vector<Json::Value> &flights)

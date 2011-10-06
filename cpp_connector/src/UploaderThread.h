@@ -172,6 +172,7 @@ public:
     void detach();
 
     virtual void log(const string &message) = 0;
+    virtual void warning(const string &message);
     virtual void saved_id(const string &type, const string &id);
     virtual void initialised();
     virtual void reset_done();
