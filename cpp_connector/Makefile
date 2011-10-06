@@ -6,7 +6,7 @@ CFLAGS = -pthread -O2 -Wall -Werror -pedantic -Wno-variadic-macros -Isrc
 upl_libs = -pthread -ljsoncpp -lcurl -lssl
 ext_libs = -ljsoncpp
 
-test_py_files = tests/test_uploader.py
+test_py_files = tests/test_uploader.py tests/test_extractor.py
 headers = src/CouchDB.h src/EZ.h src/Uploader.h src/UploaderThread.h \
           src/Extractor.h src/UKHASExtractor.h \
 		  tests/test_extractor_mock_UploaderThread.h

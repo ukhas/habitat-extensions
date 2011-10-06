@@ -164,6 +164,9 @@ class Proxy:
     def flights(self):
         return self._proxy(["flights"])
 
+    def reset(self):
+        return self._proxy(["reset"])
+
 temp_port = 51205
 
 def next_temp_port():
@@ -811,3 +814,18 @@ class TestCPPConnectorThreaded(TestCPPConnector):
         self.couchdb.check()
 
         assert ret_doc_id == self.ptlm_doc_id
+
+    def test_reset(self):
+        self.uploader.re_init("NEWCALL", self.couchdb.url)
+        self.uploader.reset()
+
+        self.couchdb.run()  # expect nothing.
+
+        try:
+            self.uploader.payload_telemetry("asdf", {})
+        except ProxyException as e:
+            assert "not initialised" in str(e)
+        else:
+            raise AssertionError("not initialised was not thrown")
+
+        self.couchdb.check()

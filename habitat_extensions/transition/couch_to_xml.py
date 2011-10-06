@@ -17,7 +17,8 @@
 # along with habitat.  If not, see <http://www.gnu.org/licenses/>.
 
 """
-Connect to CouchDB, read in all the payload configs using payload_config view, then output them as XML documents ready for dl-fldigi.
+Connect to CouchDB, read in all the payload configs using payload_config \
+view, then output them as XML documents ready for dl-fldigi.
 """
 
 import sys

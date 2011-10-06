@@ -23,8 +23,19 @@ string UploaderSettings::describe()
 {
     stringstream ss(stringstream::out);
     ss << "Uploader('" << callsign << "', '" << couch_uri << "', '"
-       << couch_db << "', '" << max_merge_attempts << ")";
+       << couch_db << "', " << max_merge_attempts << ")";
     return ss.str();
+}
+
+void UploaderReset::apply(UploaderThread &uthr)
+{
+    uthr.uploader.reset();
+    uthr.reset_done();
+}
+
+string UploaderReset::describe()
+{
+    return "~Uploader()";
 }
 
 void UploaderPayloadTelemetry::apply(UploaderThread &uthr)
@@ -132,6 +143,11 @@ void UploaderThread::settings(const string &callsign, const string &couch_uri,
     );
 }
 
+void UploaderThread::reset()
+{
+    queue_action(new UploaderReset());
+}
+
 void UploaderThread::payload_telemetry(const string &data,
                                        const Json::Value &metadata,
                                        int time_created)
@@ -202,6 +218,11 @@ void *UploaderThread::run()
     return NULL;
 }
 
+void UploaderThread::warning(const string &message)
+{
+    log("Warning: " + message);
+}
+
 void UploaderThread::saved_id(const string &type, const string &id)
 {
     log("Saved " + type + " doc: " + id);
@@ -212,16 +233,21 @@ void UploaderThread::initialised()
     log("Initialised Uploader");
 }
 
+void UploaderThread::reset_done()
+{
+    log("Settings reset");
+}
+
 void UploaderThread::caught_exception(const runtime_error &error)
 {
     const string what(error.what());
-    log("Caught runtime_error: " + what);
+    warning("Caught runtime_error: " + what);
 }
 
 void UploaderThread::caught_exception(const invalid_argument &error)
 {
     const string what(error.what());
-    log("Caught invalid_argument: " + what);
+    warning("Caught invalid_argument: " + what);
 }
 
 void UploaderThread::got_flights(const vector<Json::Value> &flights)
