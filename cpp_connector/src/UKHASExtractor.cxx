@@ -4,6 +4,7 @@
 #include <json/json.h>
 #include <stdexcept>
 #include <string>
+#include <sstream>
 #include <algorithm>
 #include <stdio.h>
 #include <stdint.h>
@@ -58,6 +59,10 @@ void UKHASExtractor::push(char b, enum push_flags flags)
         {
             mgr->status("UKHAS Extractor: crude parse failed: " +
                         string(e.what()));
+
+            Json::Value bare(Json::objectValue);
+            bare["_sentence"] = buffer;
+            mgr->data(bare);
         }
 
         reset_buffer();
@@ -202,6 +207,65 @@ static string examine_checksum(const string &data, const string &checksum_o)
     return name;
 }
 
+static bool is_ddmmmm_field(const Json::Value &field)
+{
+    if (field["sensor"] != "stdtelem.coordinate")
+        return false;
+
+    if (!field["format"].isString())
+        return false;
+
+    string format = field["format"].asString();
+
+    /* does it match d+m+\.m+ ? */
+
+    size_t pos;
+
+    pos = format.find_first_not_of('d');
+    if (pos == string::npos || format[pos] != 'm')
+        return false;
+
+    pos = format.find_first_not_of('m', pos);
+    if (pos == string::npos || format[pos] != '.')
+        return false;
+
+    pos++;
+
+    pos = format.find_first_not_of('m', pos);
+    if (pos != string::npos)
+        return false;
+
+    return true;
+}
+
+static string convert_ddmmmm(const string &value)
+{
+    size_t split = value.find('.');
+    if (split == string::npos || split <= 2)
+        throw runtime_error("invalid '.' pos when converting ddmm");
+
+    string left = value.substr(0, split - 2);
+    string right = value.substr(split - 2);
+
+    istringstream lis(left), ris(right);
+    double left_val, right_val;
+    lis >> left_val;
+    ris >> right_val;
+
+    if (lis.fail() || ris.fail() || lis.peek() != EOF || ris.peek() != EOF)
+        throw runtime_error("couldn't parse left or right parts (ddmm)");
+
+    if (right_val >= 60 || right_val < 0)
+        throw runtime_error("invalid right part (ddmm)");
+
+    double dd = left_val + (right_val / 60);
+    
+    ostringstream os;
+    os.precision(value.length() - value.find_first_not_of("0+-") - 2);
+    os << dd;
+    return os.str();
+}
+
 static void extract_fields(Json::Value &data, const Json::Value &fields,
                            const vector<string> &parts)
 {
@@ -217,7 +281,12 @@ static void extract_fields(Json::Value &data, const Json::Value &fields,
             throw runtime_error("Invalid configuration (empty field name)");
 
         if (value.length())
-            data[key] = value;
+        {
+            if (is_ddmmmm_field(*field))
+                data[key] = convert_ddmmmm(value);
+            else
+                data[key] = value;
+        }
 
         field++;
         part++;
@@ -287,10 +356,9 @@ Json::Value UKHASExtractor::crude_parse()
     cook_basic(basic, buffer, parts[0]);
     const Json::Value &sentence = settings["sentence"];
 
-
     /* If array: multiple sentence settings to try with.
      * No settings? No problem; we can still test the checksum */
-    if (sentence.isArray())
+    if (!sentence.isNull() && sentence.isArray())
     {
         /* Silence errors, and only log them if all attempts fail */
         vector<string> errors;
@@ -318,7 +386,7 @@ Json::Value UKHASExtractor::crude_parse()
             mgr->status("UKHAS Extractor: " + (*it));
         }
     }
-    else if (sentence.isObject())
+    else if (!sentence.isNull() && sentence.isObject())
     {
         try
         {

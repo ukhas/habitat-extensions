@@ -11,7 +11,7 @@ class EqualIfIn:
     def __init__(self, test):
         self.test = test
     def __eq__(self, rhs):
-        return isinstance(rhs, basestring) and self.test in rhs
+        return isinstance(rhs, basestring) and self.test.lower() in rhs.lower()
     def __repr__(self):
         return "<EqIn " + repr(self.test) + ">"
 
@@ -118,6 +118,7 @@ class TestExtractorManager:
         self.extr.check_upload()
         self.extr.check_status("extracted")
         self.extr.check_status("parse failed")
+        self.extr.check_data()
 
 class TestUKHASExtractor:
     def setup(self):
@@ -134,12 +135,14 @@ class TestUKHASExtractor:
         self.extr.check_status("start delim")
 
     def test_extracts(self):
+        string = "$$a,simple,test*00\n"
         self.extr.check_quiet()
-        self.extr.push("$$a,simple,test*00\n")
+        self.extr.push(string)
         self.extr.check_status("start delim")
-        self.extr.check_upload("$$a,simple,test*00\n")
+        self.extr.check_upload(string)
         self.extr.check_status("extracted")
         self.extr.check_status("parse failed")
+        self.extr.check_data({"_sentence": string})
 
     def test_can_restart(self):
         self.extr.push("this is some garbage just to mess things up")
@@ -148,7 +151,9 @@ class TestUKHASExtractor:
         self.extr.check_status("start delim")
 
         self.extr.push("garbage: after seeing the delimiter, we lose signal.")
+        self.extr.push("some extra $s to con$fuse it $")
         self.extr.push("$$")
+        self.extr.check_status("start delim")
         self.extr.check_status("start delim")
         self.extr.check_quiet()
         self.extr.push("helloworld")
@@ -157,6 +162,7 @@ class TestUKHASExtractor:
         self.extr.check_upload("$$helloworld\n")
         self.extr.check_status("extracted")
         self.extr.check_status("parse failed")
+        self.extr.check_data()
 
     def test_gives_up_after_1k(self):
         self.extr.push("$$")
@@ -171,6 +177,15 @@ class TestUKHASExtractor:
         self.extr.check_quiet()
 
         self.test_extracts()
+
+    def test_gives_up_after_16skipped(self):
+        self.extr.push("$$")
+        self.extr.check_status("start delim")
+        self.extr.skipped(10000)
+        self.extr.check_status("giving up")
+        self.extr.check_quiet()
+        self.extr.push("\n")
+        self.extr.check_quiet()
 
     def test_gives_up_after_16garbage(self):
         self.extr.push("$$")
@@ -197,6 +212,7 @@ class TestUKHASExtractor:
         self.extr.check_upload("$$some\1\1\1\1\1data\n")
         self.extr.check_status("extracted")
         self.extr.check_status("parse failed")
+        self.extr.check_data()
 
     def basic_data_dict(self, string, callsign):
         return {"_sentence": string, "_parsed": True, "_basic": True,
@@ -205,9 +221,8 @@ class TestUKHASExtractor:
     def check_noconfig(self, string, callsign):
         self.extr.push(string)
         self.extr.check_status("start delim")
-        self.extr.check_upload()
+        self.extr.check_upload(string)
         self.extr.check_status("extracted")
-        self.extr.check_status("full parse failed")
         self.extr.check_data(self.basic_data_dict(string, callsign))
 
     def test_crude_parse_noconfig_xor(self):
@@ -218,28 +233,102 @@ class TestUKHASExtractor:
         self.check_noconfig("$$mypayload,has,a,valid,checksum*1018\n",
                             "mypayload")
 
+    crude_parse_flight_doc = {
+        "payload": "TESTING",
+        "sentence": {
+            "checksum": "crc16-ccitt",
+            "fields": [
+                {"name": "field_a"},
+                {"name": "field_b"},
+                {"name": "field_c"}
+            ],
+        }
+    }
+
     def test_crude_parse_config(self):
-        self.extr.set_current_payload({
-            "payload": "TESTING",
-            "sentence": {
-                "checksum": "crc16-ccitt",
-                "fields": [
-                    {"name": "field_a"},
-                    {"name": "field_b"},
-                    {"name": "field_c"}
-                ],
-            }
-        })
+        self.extr.set_current_payload(self.crude_parse_flight_doc)
         string = "$$TESTING,value_a,value_b,value_c*8C3E\n"
         self.extr.push(string)
         self.extr.check_status("start delim")
-        self.extr.check_upload()
+        self.extr.check_upload(string)
         self.extr.check_status("extracted")
         self.extr.check_data({"_sentence": string, "_parsed": True,
                               "_protocol": "UKHAS", "payload": "TESTING",
                               "field_a": "value_a", "field_b": "value_b",
                               "field_c": "value_c"})
 
-    # TODO: test field number compare, checksum type compare, multi config, 
-    #            callsign compare, gives up after a billion skipped
-    # TODO: add ddmm.mmmm -> dd.dddd
+    def test_crude_checks(self):
+        checks = [
+            ("$$TESTING,a,b,c*asdfg\n", "invalid checksum len"),
+            ("$$TESTING,a,b,c*45\n", "invalid checksum: expected 1A"),
+            ("$$TESTING,a,b,c*AAAA\n", "invalid checksum: expected BEBC"),
+            ("$$TESTING,val_a,val_b*4EB7\n", "incorrect number of fields"),
+            ("$$TESTING,a,b,c*1A\n", "wrong checksum type"),
+            ("$$ANOTHER,a,b,c*2355\n", "incorrect callsign"),
+        ]
+
+        self.extr.set_current_payload(self.crude_parse_flight_doc)
+
+        for (string, error) in checks:
+            self.extr.push(string)
+            self.extr.check_status("start delim")
+            self.extr.check_upload(string)
+            self.extr.check_status("extracted")
+            self.extr.check_status(error)
+            self.extr.check_data()
+
+    multi_config_flight_doc = {
+        "payload": "AWKWARD",
+        "sentence": [
+            { "checksum": "crc16-ccitt",
+              "fields": [ {"name": "fa"}, {"name": "fo"}, {"name": "fc"} ] },
+            { "checksum": "crc16-ccitt",
+              "fields": [ {"name": "fa"}, {"name": "fb"} ] }
+        ]
+    }
+
+    def test_multi_config(self):
+        self.extr.set_current_payload(self.multi_config_flight_doc)
+        string = "$$AWKWARD,hello,world*D4E9\n"
+        self.extr.push(string)
+        self.extr.check_status("start delim")
+        self.extr.check_upload(string)
+        self.extr.check_status("extracted")
+        self.extr.check_data({"_sentence": string, "_parsed": True,
+                              "_protocol": "UKHAS", "payload": "AWKWARD",
+                              "fa": "hello", "fb": "world"})
+
+        string = "$$AWKWARD,extended,other,data*F01F\n"
+        self.extr.push(string)
+        self.extr.check_status("start delim")
+        self.extr.check_upload(string)
+        self.extr.check_status("extracted")
+        self.extr.check_data({"_sentence": string, "_parsed": True,
+                              "_protocol": "UKHAS", "payload": "AWKWARD",
+                              "fa": "extended", "fo": "other", "fc": "data"})
+
+    ddmmmmmm_flight_doc = {
+        "payload": "TESTING",
+        "sentence": {
+            "checksum": "crc16-ccitt",
+            "fields": [
+                {"sensor":"stdtelem.coordinate","name":"lat_a",
+                 "format":"dd.dddd"},
+                {"sensor":"stdtelem.coordinate","name":"lat_b",
+                 "format":"ddmm.mm"},
+                {"name": "field_b"}
+            ],
+        }
+    }
+
+    def test_ddmmmmmm(self):
+        self.extr.set_current_payload(self.ddmmmmmm_flight_doc)
+        string = "$$TESTING,0024.124583,5116.5271,whatever*14BA\n"
+        self.extr.push(string)
+        self.extr.check_status("start delim")
+        self.extr.check_upload(string)
+        self.extr.check_status("extracted")
+        self.extr.check_data({"_sentence": string, "_parsed": True,
+                              "_protocol": "UKHAS", "payload": "TESTING",
+                              "lat_a": "0024.124583", "lat_b": "51.27545",
+                              "field_b": "whatever" })
