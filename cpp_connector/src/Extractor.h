@@ -6,6 +6,7 @@
 #include <vector>
 #include <json/json.h>
 #include "UploaderThread.h"
+#include "EZ.h"
 
 using namespace std;
 
@@ -21,6 +22,7 @@ class Extractor;
 
 class ExtractorManager
 {
+    EZ::Mutex mutex;
     vector<Extractor *> extractors;
 
 public:

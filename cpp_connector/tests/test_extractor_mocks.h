@@ -1,5 +1,36 @@
-#ifndef HABITAT_TEST_EXTRACTOR_MOCK_UPLOADERTHREAD_H
-#define HABITAT_TEST_EXTRACTOR_MOCK_UPLOADERTHREAD_H
+#ifndef HABITAT_TEST_EXTRACTOR_MOCKS_H
+#define HABITAT_TEST_EXTRACTOR_MOCKS_H
+
+/* Prevent EZ.h inclusion */
+#define HABITAT_EZ_H
+
+#include <assert.h>
+
+namespace EZ {
+
+/* The tests are single threaded, so this works */
+
+class Mutex
+{
+protected:
+    bool locked;
+    friend class MutexLock;
+
+public:
+    Mutex() : locked(false) {};
+    ~Mutex() {};
+};
+
+class MutexLock
+{
+    Mutex &m;
+
+public:
+    MutexLock(Mutex &_m) : m(_m) { assert(!m.locked); m.locked = true; };
+    ~MutexLock() { m.locked = false; };
+};
+
+}
 
 /* Prevent inclusion of real UploaderThread */
 #define HABITAT_UPLOADERTHREAD_H

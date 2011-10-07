@@ -9,7 +9,7 @@ ext_libs = -ljsoncpp
 test_py_files = tests/test_uploader.py tests/test_extractor.py
 headers = src/CouchDB.h src/EZ.h src/Uploader.h src/UploaderThread.h \
           src/Extractor.h src/UKHASExtractor.h \
-		  tests/test_extractor_mock_UploaderThread.h
+		  tests/test_extractor_mocks.h
 upl_cxxfiles = src/CouchDB.cxx src/EZ.cxx src/Uploader.cxx
 upl_thr_cflags = -DTHREADED
 upl_nrm_binary = tests/cpp_connector
@@ -19,7 +19,7 @@ upl_thr_objects = src/UploaderThread.o tests/test_uploader_main.threaded.o
 ext_cxxfiles = src/Extractor.cxx src/UKHASExtractor.cxx \
                tests/test_extractor_main.cxx
 ext_binary = tests/extractor
-ext_mock_cflags = -include tests/test_extractor_mock_UploaderThread.h
+ext_mock_cflags = -include tests/test_extractor_mocks.h
 
 CXXFLAGS = $(CFLAGS)
 upl_objects = $(patsubst %.cxx,%.o,$(upl_cxxfiles))
