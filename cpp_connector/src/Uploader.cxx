@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <openssl/sha.h>
 #include <openssl/bio.h>
@@ -244,7 +245,14 @@ string Uploader::listener_info(const Json::Value &data, int time_created)
 
 vector<Json::Value> *Uploader::flights()
 {
-    Json::Value *response = database.view("habitat", "flights");
+    map<string,string> options;
+    ostringstream timefmt;
+    timefmt << time(NULL);
+
+    options["include_docs"] = "true";
+    options["startkey"] = timefmt.str();
+
+    Json::Value *response = database.view("uploader_v1", "flights", options);
     auto_ptr<Json::Value> response_destroyer(response);
 
     vector<Json::Value> *result = new vector<Json::Value>;
@@ -257,7 +265,7 @@ vector<Json::Value> *Uploader::flights()
 
     for (it = rows.begin(); it != rows.end(); it++)
     {
-        result->push_back((*it)["value"]);
+        result->push_back((*it)["doc"]);
     }
 
     result_destroyer.release();

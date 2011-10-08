@@ -711,13 +711,20 @@ class TestCPPConnector:
     def test_flights(self):
         flights= [{"_id": "flight_{0}".format(i), "a flight": i}
                   for i in xrange(100)]
-        rows = [{"id": doc["_id"], "key": None, "value": doc}
+        rows = [{"id": doc["_id"], "key": None, "value": None, "doc": doc}
                 for doc in flights]
         fake_view_response = \
                 {"total_rows": len(rows), "offset": 0, "rows": rows}
 
+        # cURL is a little overzealous with its escape(): _ is replaced
+        # with %5F. This should be fine
+
+        self.callbacks.advance_time(1925)
+        view_time = self.callbacks.time_project(1925)
+        options = "include%5Fdocs=true&startkey=" + str(view_time)
+
         self.couchdb.expect_request(
-            path=self.db_path + "_design/habitat/_view/flights",
+            path=self.db_path + "_design/uploader%5Fv1/_view/flights?" + options,
             code=200,
             respond_json=copy.deepcopy(fake_view_response)
         )

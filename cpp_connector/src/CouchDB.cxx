@@ -179,7 +179,7 @@ Json::Value *Database::view(const string &design_doc, const string &view_name,
         view_url.append("/_view/");
     }
 
-    view_url.append(view_name);
+    view_url.append(EZ::cURL::escape(view_name));
 
     if (options.size())
     {
