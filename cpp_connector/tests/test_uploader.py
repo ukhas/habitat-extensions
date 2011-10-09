@@ -6,13 +6,17 @@ import errno
 import fcntl
 import tempfile
 import json
-import elementtree.ElementTree
 import BaseHTTPServer
 import threading
 import collections
 import time
 import uuid
 import copy
+
+try:
+    import elementtree.ElementTree
+except:
+    elementtree = None
 
 class ProxyException:
     def __init__(self, name, what=None):
@@ -147,6 +151,9 @@ class Proxy:
             self._check_valgrind()
 
     def _check_valgrind(self):
+        if elementtree == None:
+            raise AssertionError("Need elementtree in order to check Valgrind")
+
         if self.xmlfile:
             self.xmlfile.seek(0)
             tree = elementtree.ElementTree.parse(self.xmlfile)
