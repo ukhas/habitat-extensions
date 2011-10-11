@@ -27,9 +27,10 @@ import traceback
 import threading
 import Queue
 import copy
+import json
 from . import config
 
-__all__ = ["SpaceNearUsSink"]
+__all__ = ["SpaceNearUs"]
 logger = logging.getLogger("habitat_extensions.transition.spacenearus")
 
 class SpaceNearUs:
@@ -133,6 +134,16 @@ class SpaceNearUs:
         except KeyError:
             pass
 
+        unused_data = {}
+        used_keys = set(fields.values() + ["time"])
+        unused_keys = set(data.keys()) - used_keys
+
+        for key in unused_keys:
+            if not key.startswith("_"):
+                unused_data[key] = data[key]
+
+        params["data"] = json.dumps(unused_data)
+
         params["pass"] = "aurora"
 
         for callsign in new_receivers:
@@ -147,13 +158,17 @@ class SpaceNearUs:
             "lon": "longitude"
         }
 
-        if "data" not in doc or "callsign" not in doc:
+        if "data" not in doc:
             return
 
         data = doc["data"]
+
+        if "callsign" not in data:
+            return
+
         callsign = data["callsign"]
 
-        if "chase" not in callsign:
+        if "chase" not in callsign.lower():
             return
 
         if not isinstance(data, dict):

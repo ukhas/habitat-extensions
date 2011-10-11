@@ -2,7 +2,9 @@
 
 #include "Uploader.h"
 #include <string>
+#include <vector>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <openssl/sha.h>
 #include <openssl/bio.h>
@@ -239,6 +241,36 @@ string Uploader::listener_info(const Json::Value &data, int time_created)
     latest_listener_info =
         listener_doc("listener_info", data, time_created);
     return latest_listener_info;
+}
+
+vector<Json::Value> *Uploader::flights()
+{
+    map<string,string> options;
+    ostringstream timefmt;
+    timefmt << time(NULL);
+
+    options["include_docs"] = "true";
+    options["startkey"] = timefmt.str();
+
+    Json::Value *response = database.view("uploader_v1", "flights", options);
+    auto_ptr<Json::Value> response_destroyer(response);
+
+    vector<Json::Value> *result = new vector<Json::Value>;
+    auto_ptr< vector<Json::Value> > result_destroyer(result);
+
+    const Json::Value &rows = (*response)["rows"];
+    Json::Value::const_iterator it;
+
+    result->reserve(rows.size());
+
+    for (it = rows.begin(); it != rows.end(); it++)
+    {
+        result->push_back((*it)["doc"]);
+    }
+
+    result_destroyer.release();
+
+    return result;
 }
 
 } /* namespace habitat */

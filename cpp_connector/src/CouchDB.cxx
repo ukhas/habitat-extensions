@@ -11,27 +11,40 @@ using namespace std;
 
 namespace CouchDB {
 
-static const char *url_sep_after(const string &s)
-{
-    if (s.length() && s[s.length() - 1] != '/')
-        return "/";
-    else
-        return "";
-}
+const map<string,string> Database::view_default_options;
 
-Server::Server(const string &url)
-    : url(url + url_sep_after(url))
+static string server_url(const string &url)
 {
     if (!url.length())
         throw invalid_argument("URL of zero length");
+
+    string url_ts(url);
+
+    if (*(url.rbegin()) != '/')
+        url_ts.append("/");
+
+    return url_ts;
 }
 
-Database::Database(Server &server, const string &db)
-    : server(server), url(server.url + db + url_sep_after(db))
+static string database_url(const string &server_url, const string &db)
 {
     if (!db.length())
         throw invalid_argument("DB of zero length");
+
+    string url(server_url);
+    url.append(EZ::cURL::escape(db));
+
+    if (*(db.rbegin()) != '/')
+        url.append("/");
+
+    return url;
 }
+
+Server::Server(const string &url)
+    : url(server_url(url)) {}
+
+Database::Database(Server &server, const string &db)
+    : server(server), url(database_url(server.url, db)) {}
 
 string Server::next_uuid()
 {
@@ -49,18 +62,10 @@ string Server::next_uuid()
         string uuid_url(url);
         uuid_url.append("_uuids?count=100");
 
-        string *response = curl.get(uuid_url);
-        auto_ptr<string> response_destroyer(response);
+        Json::Value *root = get_json(uuid_url);
+        auto_ptr<Json::Value> value_destroyer(root);
 
-        Json::Reader reader;
-        Json::Value root;
-
-        if (!reader.parse(*response, root, false))
-            throw runtime_error("JSON Parsing error");
-
-        response_destroyer.reset();
-
-        const Json::Value uuids = root["uuids"];
+        const Json::Value &uuids = (*root)["uuids"];
         if (!uuids.isArray() || !uuids.size())
             throw runtime_error("Invalid UUIDs response");
 
@@ -71,6 +76,29 @@ string Server::next_uuid()
     }
 
     return uuid;
+}
+
+Json::Value *Server::get_json(const string &get_url)
+{
+    Json::Reader reader;
+    Json::Value *doc = new Json::Value;
+    auto_ptr<Json::Value> value_destroyer(doc);
+
+    string response = curl.get(get_url);
+
+    if (!reader.parse(response, *doc, false))
+        throw runtime_error("JSON Parsing error");
+
+    value_destroyer.release();
+
+    return doc;
+}
+
+string Database::make_doc_url(const string &doc_id) const
+{
+    string doc_url(url);
+    doc_url.append(EZ::cURL::escape(doc_id));
+    return doc_url;
 }
 
 Json::Value *Database::operator[](const string &doc_id)
@@ -98,19 +126,13 @@ void Database::save_doc(Json::Value &doc)
     Json::FastWriter writer;
     string json_doc = writer.write(doc);
 
-    string doc_url(url);
-    string *doc_id_escaped = EZ::cURL::escape(doc_id);
+    string doc_url = make_doc_url(doc_id);
 
-    doc_url.append(*doc_id_escaped);
-    delete doc_id_escaped;
-
-    string *response;
-    auto_ptr<string> response_destroyer;
+    string response;
 
     try
     {
         response = server.curl.put(doc_url, json_doc);
-        response_destroyer.reset(response);
     }
     catch (EZ::HTTPResponse e)
     {
@@ -125,10 +147,8 @@ void Database::save_doc(Json::Value &doc)
     Json::Reader reader;
     Json::Value info;
 
-    if (!reader.parse(*response, info, false))
+    if (!reader.parse(response, info, false))
         throw runtime_error("JSON Parsing error");
-
-    response_destroyer.reset();
 
     const Json::Value &new_id = info["id"];
     const Json::Value &new_rev = info["rev"];
@@ -144,26 +164,35 @@ void Database::save_doc(Json::Value &doc)
 
 Json::Value *Database::get_doc(const string &doc_id)
 {
-    string doc_url(url);
-    string *doc_id_escaped = EZ::cURL::escape(doc_id);
+    return server.get_json(make_doc_url(doc_id));
+}
 
-    doc_url.append(*doc_id_escaped);
-    delete doc_id_escaped;
+Json::Value *Database::view(const string &design_doc, const string &view_name,
+                            const map<string,string> &options)
+{
+    string view_url(url);
 
-    Json::Reader reader;
-    Json::Value *doc = new Json::Value;
-    auto_ptr<Json::Value> value_destroyer(doc);
+    if (design_doc.length())
+    {
+        view_url.append("_design/");
+        view_url.append(EZ::cURL::escape(design_doc));
+        view_url.append("/_view/");
+    }
 
-    string *response = server.curl.get(doc_url);
-    auto_ptr<string> response_destroyer(response);
+    view_url.append(EZ::cURL::escape(view_name));
 
-    if (!reader.parse(*response, *doc, false))
-        throw runtime_error("JSON Parsing error");
+    if (options.size())
+    {
+        view_url.append(EZ::cURL::query_string(options, true));
+    }
 
-    response_destroyer.reset();
-    value_destroyer.release();
+    return server.get_json(view_url);
+}
 
-    return doc;
+string Database::json_query_value(Json::Value &value)
+{
+    Json::FastWriter writer;
+    return writer.write(value);
 }
 
 } /* namespace CouchDB */

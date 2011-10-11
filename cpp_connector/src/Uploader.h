@@ -1,10 +1,11 @@
 /* Copyright 2011 (C) Daniel Richman. License: GNU GPL 3; see LICENSE. */
 
-#ifndef HABITATCPP_UPLOADER_H
-#define HABITATCPP_UPLOADER_H
+#ifndef HABITAT_UPLOADER_H
+#define HABITAT_UPLOADER_H
 
 #include <iostream>
 #include <string>
+#include <vector>
 #include <stdexcept>
 #include <json/json.h>
 #include "EZ.h"
@@ -31,10 +32,10 @@ public:
 class Uploader
 {
     EZ::Mutex mutex;
-    string callsign;
+    const string callsign;
     CouchDB::Server server;
     CouchDB::Database database;
-    int max_merge_attempts;
+    const int max_merge_attempts;
     string latest_listener_info;
     string latest_listener_telemetry;
 
@@ -52,8 +53,9 @@ public:
                              int time_created=-1);
     string listener_telemetry(const Json::Value &data, int time_created=-1);
     string listener_info(const Json::Value &data, int time_created=-1);
+    vector<Json::Value> *flights();
 };
 
 } /* namespace habitat */
 
-#endif
+#endif /* HABITAT_UPLOADER_H */

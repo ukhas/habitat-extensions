@@ -17,7 +17,8 @@
 # along with habitat.  If not, see <http://www.gnu.org/licenses/>.
 
 """
-Connect to CouchDB, read in all the payload configs using payload_config view, then output them as XML documents ready for dl-fldigi.
+Connect to CouchDB, read in all the payload configs using payload_config \
+view, then output them as XML documents ready for dl-fldigi.
 """
 
 import sys
@@ -162,12 +163,12 @@ class PayloadXML(object):
 
         seq = 2
         for field in self.payload["sentence"]["fields"]:
-            if field["type"] == "stdtelem.coordinate":
+            if field["sensor"] == "stdtelem.coordinate":
                 data_format = field["format"]
             else:
                 data_format = None
             self._add_field(seq=seq, dbfield=field["name"], minsize=0,
-                maxsize=999, datatype=self.type_map[field["type"]],
+                maxsize=999, datatype=self.type_map[field["sensor"]],
                 format=data_format)
             seq += 1
 

@@ -48,7 +48,7 @@ cat <<-EOF
     <li><a href="https://www.pivotaltracker.com/projects/112268">habitat on Pivotal Tracker</a> (roadmap, etc.)</li>
     <li><a href="http://ci.habhub.org/">habitat's continuous integration server</a></li>
     <li>
-      <code>git checkout git://github.com/ukhas/habitat.git</code>
+      <code>git clone git://github.com/ukhas/habitat.git</code>
       <span class="small">(mirror at <code><a href="habitat.git">http://habitat.habhub.org/habitat.git</a></code>)</span>
     </li>
     <li>

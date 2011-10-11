@@ -10,7 +10,7 @@ require_once "JSON.php";
  */
 
 /* $habitat_url = "http://localhost:5000/%s"; */
-$habitat_url = "http://habitat.habhub.org/testing/%s";
+$habitat_url = "http://habitat.habhub.org/transition/%s";
 
 function habitat($identity, $string)
 {
@@ -129,6 +129,7 @@ function habitat_payload_telemetry($callsign, $string, $metadata)
     $post_data = array(
         "callsign" => $callsign,
         "string" => base64_encode($string),
+        "string_type" => "base64",
         "metadata" => $json->encode($metadata)
     );
     habitat_flask("payload_telemetry", $post_data);
