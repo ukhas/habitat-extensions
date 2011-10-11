@@ -33,7 +33,7 @@ from . import couch_to_xml
 # Monkey patch float precision
 json.encoder.FLOAT_REPR = lambda o: format(o, '.5f')
 
-app = flask.Flask("habitat_extensions.app")
+app = flask.Flask("habitat_extensions.transition.app")
 
 @app.route("/")
 def hello():
