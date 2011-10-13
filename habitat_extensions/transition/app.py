@@ -187,6 +187,9 @@ def listener_map(couch_db, item):
             if key not in info:
                 info[key] = "Unknown"
 
+        if "altitude" not in telemetry:
+            telemetry["altitude"] = 0.0
+
         info["radio_safe"] = htmlescape(info["radio"])
         info["antenna_safe"] = htmlescape(info["antenna"])
         info["tdiff_hours"] = tdiff_hours
@@ -199,7 +202,6 @@ def listener_map(couch_db, item):
             "description": HTML_DESCRIPTION.format(**info)
         }
     except KeyError:
-        raise
         return None
 
 @app.route("/receivers")
