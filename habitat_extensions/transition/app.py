@@ -185,7 +185,7 @@ def listener_map(couch_db, item):
 
         for key in ["radio", "antenna"]:
             if key not in info:
-                info["key"] = "Unknown"
+                info[key] = "Unknown"
 
         info["radio_safe"] = htmlescape(info["radio"])
         info["antenna_safe"] = htmlescape(info["antenna"])
