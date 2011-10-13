@@ -183,6 +183,10 @@ def listener_map(couch_db, item):
         tdiff = int(time.time()) - data["latest"]
         tdiff_hours = tdiff / 3600
 
+        for key in ["radio", "antenna"]:
+            if key not in info:
+                info["key"] = "Unknown"
+
         info["radio_safe"] = htmlescape(info["radio"])
         info["antenna_safe"] = htmlescape(info["antenna"])
         info["tdiff_hours"] = tdiff_hours
