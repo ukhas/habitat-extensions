@@ -27,13 +27,18 @@ import time
 import couchdbkit
 from xml.sax.saxutils import escape as htmlescape
 from habitat import uploader
-from . import config
 from . import couch_to_xml
+from habitat.utils.startup import load_config
 
 # Monkey patch float precision
 json.encoder.FLOAT_REPR = lambda o: format(o, '.5f')
 
 app = flask.Flask("habitat_extensions.transition.app")
+
+# Load config here :S ?
+config = load_config()
+couch_settings = {"couch_uri": config["couch_uri"],
+                  "couch_db": config["couch_db"]}
 
 @app.route("/")
 def hello():
@@ -103,7 +108,7 @@ def payload_telemetry():
     assert callsign and string
     assert isinstance(metadata, dict)
 
-    u = uploader.Uploader(callsign=callsign, **config.COUCH_SETTINGS)
+    u = uploader.Uploader(callsign=callsign, **couch_settings)
     u.payload_telemetry(string, metadata, time_created)
 
     return "OK"
@@ -117,7 +122,7 @@ def listener_info():
     assert callsign and data
     assert isinstance(data, dict)
 
-    u = uploader.Uploader(callsign=callsign, **config.COUCH_SETTINGS)
+    u = uploader.Uploader(callsign=callsign, **couch_settings)
     u.listener_info(data, time_created)
 
     return "OK"
@@ -131,15 +136,14 @@ def listener_telemetry():
     assert callsign and data
     assert isinstance(data, dict)
 
-    u = uploader.Uploader(callsign=callsign, **config.COUCH_SETTINGS)
+    u = uploader.Uploader(callsign=callsign, **couch_settings)
     u.listener_telemetry(data, time_created)
 
     return "OK"
 
 @app.route("/allpayloads")
 def allpayloads():
-    a = [config.COUCH_SETTINGS["couch_uri"], config.COUCH_SETTINGS["couch_db"]]
-    response = flask.make_response(couch_to_xml.dump_xml(*a))
+    response = flask.make_response(couch_to_xml.dump_xml(**couch_settings))
     set_expires(response, 10 * 60)
     return response
 
@@ -206,7 +210,6 @@ def listener_map(couch_db, item):
 
 @app.route("/receivers")
 def receivers():
-    couch_settings = config.COUCH_SETTINGS
     couch_server = couchdbkit.Server(couch_settings["couch_uri"])
     couch_db = couch_server[couch_settings["couch_db"]]
 

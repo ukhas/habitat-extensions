@@ -28,7 +28,6 @@ import threading
 import Queue
 import copy
 import json
-from . import config
 
 __all__ = ["SpaceNearUs"]
 logger = logging.getLogger("habitat_extensions.transition.spacenearus")
@@ -38,10 +37,11 @@ class SpaceNearUs:
     The SpaceNearUs daemon forwards on parsed telemetry to the spacenear.us
     tracker (or a copy of it) to use as an alternative frontend.
     """
-    def __init__(self, couch_settings, tracker):
-        self.tracker = tracker
-        server = couchdbkit.Server(couch_settings["couch_uri"])
-        self.db = server[couch_settings["couch_db"]]
+
+    def __init__(self, config, daemon_name):
+        self.tracker = config[daemon_name]["tracker"]
+        server = couchdbkit.Server(config["couch_uri"])
+        self.db = server[config["couch_db"]]
 
         self.recent_doc_ids = []
         self.recent_doc_receivers = {}
@@ -77,9 +77,12 @@ class SpaceNearUs:
         logger.debug("Considering doc " + doc_id)
 
         if doc["type"] == "payload_telemetry":
-            self.payload_telemetry(doc)
+            num = self.payload_telemetry(doc)
         elif doc["type"] == "listener_telemetry":
-            self.listener_telemetry(doc)
+            num = self.listener_telemetry(doc)
+
+        logger.debug("Added to queue: " + str(num))
+        logger.debug("Queue length now: " + str(self.upload_queue.qsize()))
 
     def payload_telemetry(self, doc):
         fields = {
@@ -151,6 +154,8 @@ class SpaceNearUs:
             p["callsign"] = callsign
             self.upload_queue.put(p)
 
+        return len(new_receivers)
+
     def listener_telemetry(self, doc):
         fields = {
             "vehicle": "callsign",
@@ -187,12 +192,25 @@ class SpaceNearUs:
 
         params["pass"] = "aurora"
         self.upload_queue.put(params)
+        return 1
 
     def uploader_thread(self):
         while True:
-            params = self.upload_queue.get()
-            self._post_to_track(params)
-            self.upload_queue.task_done()
+            # Do not die, whatever happens. Dying is bad.
+            try:
+                params = self.upload_queue.get()
+                try:
+                    self._post_to_track(params)
+                except:
+                    logger.exception("exception during upload")
+                self.upload_queue.task_done()
+                logger.debug("Queue length now: " + str(self.upload_queue.qsize()))
+            except:
+                # Absolutely under no circumstance allow the thread to die
+                try:
+                    logger.exception("uploader thread: confused")
+                except:
+                    pass
 
     def _copy_fields(self, fields, data, params):
         for (tgt, src) in fields.items():
@@ -205,11 +223,3 @@ class SpaceNearUs:
         qs = urlencode(params, True)
         logger.debug("encoded data: " + qs)
         u = urlopen(self.tracker.format(qs))
-
-def main():
-    logging.basicConfig(level=logging.DEBUG)
-    # See habitat.main
-    logging.getLogger("restkit").setLevel(logging.WARNING)
-    logger.debug("Starting up")
-    s = SpaceNearUs(config.COUCH_SETTINGS, config.TRACKER)
-    s.run()
