@@ -37,31 +37,36 @@ def main():
         print "Error getting XML, stopping: {0}: {1}".format(type(e), e)
 
 def dump_xml(couch_uri, couch_db):
-    docs = get_flight_docs(couch_uri, couch_db)
-    payloads = PayloadsXML()
-    for doc in docs:
+    payloads = get_payloads(couch_uri, couch_db)
+    root = PayloadsXML()
+    for payload in payloads:
         try:
-            payloads.add_doc(doc)
+            root.add_payload(payload, payloads[payload])
         except Exception as e:
             print "Error occured processing a payload: {0}: {1}".format(
                 type(e), e)
             print "Continuing..."
             continue
-    return str(payloads)
+    return str(root)
 
-def get_flight_docs(couch_uri, couch_db):
+def get_payloads(couch_uri, couch_db):
     server = couchdbkit.Server(couch_uri)
     db = server[couch_db]
     results = db.view("habitat/payload_config", include_docs=True)
+    payloads = {}
+    # payload_config will be sorted, newest last. New docs will therefore
+    # overwrite:
     for result in results:
-        yield result["doc"]
+        for payload in result["doc"]["payloads"]:
+            payloads[payload] = result["doc"]["payloads"][payload]
+    return payloads
 
 class PayloadsXML(object):
     def __init__(self):
         self.tree = ET.Element("payloads")
 
-    def add_doc(self, doc):
-        payload = PayloadXML(doc)
+    def add_payload(self, callsign, config):
+        payload = PayloadXML(callsign, config)
         self.tree.append(payload.get_xml())
 
     def __str__(self):
@@ -82,11 +87,10 @@ class PayloadXML(object):
         "base.ascii_float": "decimal",
         "base.string": "char"
     }
-    def __init__(self, doc):
-        self.doc = doc
+    def __init__(self, callsign, config):
+        self.callsign = callsign
+        self.payload = config
         self.tree = ET.Element("payload")
-        self.callsign = self.doc["payloads"].keys()[0]
-        self.payload = self.doc["payloads"][self.callsign]
 
         name = ET.SubElement(self.tree, 'name')
         name.text = str(self.callsign)
