@@ -234,8 +234,8 @@ class TestUKHASExtractor:
                             "mypayload")
 
     crude_parse_flight_doc = {
-        "payload": "TESTING",
         "sentence": {
+            "payload": "TESTING",
             "checksum": "crc16-ccitt",
             "fields": [
                 {"name": "field_a"},
@@ -278,11 +278,12 @@ class TestUKHASExtractor:
             self.extr.check_data()
 
     multi_config_flight_doc = {
-        "payload": "AWKWARD",
         "sentence": [
-            { "checksum": "crc16-ccitt",
+            { "payload": "AWKWARD",
+              "checksum": "crc16-ccitt",
               "fields": [ {"name": "fa"}, {"name": "fo"}, {"name": "fc"} ] },
-            { "checksum": "crc16-ccitt",
+            { "payload": "AWKWARD",
+              "checksum": "crc16-ccitt",
               "fields": [ {"name": "fa"}, {"name": "fb"} ] }
         ]
     }
@@ -308,8 +309,8 @@ class TestUKHASExtractor:
                               "fa": "extended", "fo": "other", "fc": "data"})
 
     ddmmmmmm_flight_doc = {
-        "payload": "TESTING",
         "sentence": {
+            "payload": "TESTING",
             "checksum": "crc16-ccitt",
             "fields": [
                 {"sensor":"stdtelem.coordinate","name":"lat_a",

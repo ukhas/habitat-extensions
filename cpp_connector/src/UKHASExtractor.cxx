@@ -293,20 +293,6 @@ static void extract_fields(Json::Value &data, const Json::Value &fields,
     }
 }
 
-static void check_callsign(const Json::Value &settings,
-                           const vector<string> &parts)
-{
-    if (!parts.size() || !parts[0].size())
-        throw runtime_error("Empty callsign");
-
-    if (!settings.isNull())
-    {
-        const string callsign = settings["payload"].asString();
-        if (parts[0] != callsign)
-            throw runtime_error("Incorrect callsign");
-    }
-}
-
 static void cook_basic(Json::Value &basic, const string &buffer,
                        const string &callsign)
 {
@@ -321,6 +307,10 @@ static void attempt_settings(Json::Value &data, const Json::Value &sentence,
                              const vector<string> &parts)
 {
     const Json::Value &fields = sentence["fields"];
+
+    const string callsign = sentence["payload"].asString();
+    if (parts[0] != callsign)
+        throw runtime_error("Incorrect callsign");
 
     if (sentence["checksum"] != checksum_name)
         throw runtime_error("Wrong checksum type");
@@ -349,7 +339,8 @@ Json::Value UKHASExtractor::crude_parse()
      * conveninently are different lengths, so this works. */
     string checksum_name = examine_checksum(data, checksum);
     vector<string> parts = split(data, ',');
-    check_callsign(settings, parts);
+    if (!parts.size() || !parts[0].size())
+        throw runtime_error("Empty callsign");
 
     Json::Value basic(Json::objectValue);
     cook_basic(basic, buffer, parts[0]);
