@@ -3,6 +3,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <json/json.h>
+#include <memory>
 
 #include "Extractor.h"
 #include "UKHASExtractor.h"
@@ -28,27 +29,17 @@ public:
     void data(const Json::Value &d) { write("data", d); };
 };
 
-/* This differs from an auto_ptr: it deletes whatever is pointed to,
- * even if that pointer changes */
-template<typename T>
-class DeleteLater
-{
-    T **the_pointer;
-public:
-    DeleteLater(T **p) : the_pointer(p) {};
-    ~DeleteLater() { delete *the_pointer; };
-};
-
 void handle_command(const Json::Value &command,
                     JsonIOExtractorManager &manager,
-                    habitat::UKHASExtractor &extractor);
+                    habitat::UKHASExtractor &extractor,
+                    auto_ptr<Json::Value> &current_payload);
 
 int main(int argc, char **argv)
 {
     habitat::UploaderThread thread;
     JsonIOExtractorManager manager(thread);
     habitat::UKHASExtractor extractor;
-    DeleteLater<Json::Value> destroyer(&(manager.current_payload));
+    auto_ptr<Json::Value> current_payload;
 
     for (;;)
     {
@@ -67,13 +58,14 @@ int main(int argc, char **argv)
         if (!command.isArray() || !command[0u].isString())
             throw runtime_error("Invalid JSON input");
 
-        handle_command(command, manager, extractor);
+        handle_command(command, manager, extractor, current_payload);
     }
 }
 
 void handle_command(const Json::Value &command,
                     JsonIOExtractorManager &manager,
-                    habitat::UKHASExtractor &extractor)
+                    habitat::UKHASExtractor &extractor,
+                    auto_ptr<Json::Value> &current_payload)
 {
     string command_name = command[0u].asString();
     const Json::Value &arg = command[1u];
@@ -109,8 +101,8 @@ void handle_command(const Json::Value &command,
     }
     else if (command_name == "set_current_payload")
     {
-        delete manager.current_payload;
-        manager.current_payload = new Json::Value(arg);
+        current_payload.reset(new Json::Value(arg));
+        manager.current_payload = current_payload.get();
     }
     else
     {
