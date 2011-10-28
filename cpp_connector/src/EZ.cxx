@@ -12,9 +12,35 @@ using namespace std;
 
 namespace EZ {
 
+class MutexAttr
+{
+public:
+    pthread_mutexattr_t attr;
+
+    MutexAttr();
+    ~MutexAttr();
+};
+
+class ThreadAttr
+{
+public:
+    pthread_attr_t attr;
+
+    ThreadAttr();
+    ~ThreadAttr();
+};
+
 Mutex::Mutex()
 {
-    int result = pthread_mutex_init(&mutex, NULL);
+    MutexAttr attr;
+    int result;
+
+    result = pthread_mutexattr_settype(&attr.attr, PTHREAD_MUTEX_RECURSIVE);
+
+    if (result != 0)
+        throw runtime_error("Failed to set mutex type");
+
+    result = pthread_mutex_init(&mutex, &attr.attr);
 
     if (result != 0)
         throw runtime_error("Failed to create mutex");
@@ -69,6 +95,19 @@ void ConditionVariable::broadcast()
 }
 
 /* Queue's methods are in UploadThread.h since it's templated */
+
+MutexAttr::MutexAttr()
+{
+    int result = pthread_mutexattr_init(&attr);
+
+    if (result != 0)
+        throw runtime_error("Failed to create mutexattr");
+}
+
+MutexAttr::~MutexAttr()
+{
+    pthread_mutexattr_destroy(&attr);
+}
 
 ThreadAttr::ThreadAttr()
 {

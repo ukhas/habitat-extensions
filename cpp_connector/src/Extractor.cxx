@@ -34,4 +34,16 @@ void ExtractorManager::push(char b, enum push_flags flags)
         (*it)->push(b, flags);
 }
 
+void ExtractorManager::payload(const Json::Value *set)
+{
+    EZ::MutexLock lock(mutex);
+    current_payload = set;
+}
+
+const Json::Value *ExtractorManager::payload()
+{
+    EZ::MutexLock lock(mutex);
+    return current_payload;
+}
+
 } /* namespace habitat */

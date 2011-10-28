@@ -24,17 +24,19 @@ class ExtractorManager
 {
     EZ::Mutex mutex;
     vector<Extractor *> extractors;
+    const Json::Value *current_payload;
 
 public:
     UploaderThread &uthr;
-    const Json::Value *current_payload;
 
-    ExtractorManager(UploaderThread &u) : uthr(u), current_payload(NULL) {};
+    ExtractorManager(UploaderThread &u) : current_payload(NULL), uthr(u) {};
     virtual ~ExtractorManager() {};
 
     void add(Extractor &e);
     void skipped(int n);
     void push(char b, enum push_flags flags=PUSH_NONE);
+    void payload(const Json::Value *set);
+    const Json::Value *payload();
 
     virtual void status(const string &msg) = 0;
     virtual void data(const Json::Value &d) = 0;

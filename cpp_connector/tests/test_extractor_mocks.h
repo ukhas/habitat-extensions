@@ -13,11 +13,11 @@ namespace EZ {
 class Mutex
 {
 protected:
-    bool locked;
+    int lock_count;
     friend class MutexLock;
 
 public:
-    Mutex() : locked(false) {};
+    Mutex() : lock_count(0) {};
     ~Mutex() {};
 };
 
@@ -26,8 +26,8 @@ class MutexLock
     Mutex &m;
 
 public:
-    MutexLock(Mutex &_m) : m(_m) { assert(!m.locked); m.locked = true; };
-    ~MutexLock() { m.locked = false; };
+    MutexLock(Mutex &_m) : m(_m) { m.lock_count++; };
+    ~MutexLock() { m.lock_count--; assert(m.lock_count >= 0); };
 };
 
 }

@@ -102,7 +102,7 @@ void handle_command(const Json::Value &command,
     else if (command_name == "set_current_payload")
     {
         current_payload.reset(new Json::Value(arg));
-        manager.current_payload = current_payload.get();
+        manager.payload(current_payload.get());
     }
     else
     {

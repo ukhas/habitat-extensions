@@ -335,10 +335,9 @@ static void attempt_settings(Json::Value &data, const Json::Value &sentence,
  * habitat.parser_modules.ukhas_parser.UKHASParser */
 Json::Value UKHASExtractor::crude_parse()
 {
-    const Json::Value *settings_ptr;
-    if (mgr->current_payload)
-        settings_ptr = mgr->current_payload;
-    else
+    const Json::Value *settings_ptr = mgr->payload();
+
+    if (!settings_ptr)
         settings_ptr = &(Json::Value::null);
 
     const Json::Value &settings = *settings_ptr;

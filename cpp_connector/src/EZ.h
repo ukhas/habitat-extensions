@@ -84,16 +84,6 @@ item Queue<item>::get()
     return x;
 }
 
-class ThreadAttr
-{
-    pthread_attr_t attr;
-    friend class SimpleThread;
-
-public:
-    ThreadAttr();
-    ~ThreadAttr();
-};
-
 class SimpleThread
 {
     Mutex mutex;
