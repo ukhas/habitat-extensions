@@ -39,7 +39,7 @@ def main():
 def dump_xml(couch_uri, couch_db):
     payloads = get_payloads(couch_uri, couch_db)
     root = PayloadsXML()
-    for payload in payloads:
+    for payload in sorted(payloads.keys(), key=lambda x: x.upper()):
         try:
             root.add_payload(payload, payloads[payload])
         except Exception as e:
