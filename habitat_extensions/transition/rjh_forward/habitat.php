@@ -35,7 +35,7 @@ function habitat($identity, $string)
 
 function habitat_string($identity, $string)
 {
-    $string = '$$'.$string;
+    $string = '$$'.$string."\n";
 
     $callsign = habitat_callsign($identity);
     $metadata = array();
