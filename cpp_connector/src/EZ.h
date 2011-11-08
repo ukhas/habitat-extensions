@@ -86,8 +86,11 @@ item Queue<item>::get()
 
 class SimpleThread
 {
+protected:
     Mutex mutex;
     pthread_t thread;
+
+private:
     bool started;
     bool joined;
     void *exit_arg;
