@@ -122,8 +122,12 @@ UploaderThread::UploaderThread() : queued_shutdown(false) {}
 
 UploaderThread::~UploaderThread()
 {
+    EZ::MutexLock lock(mutex);
+
     if (!queued_shutdown)
         shutdown();
+
+    join();
 }
 
 void UploaderThread::queue_action(UploaderAction *action)
@@ -174,13 +178,14 @@ void UploaderThread::flights()
 
 void UploaderThread::shutdown()
 {
+    /* Borrow the SimpleThread mutex to make queued_shutdown access safe */
+    EZ::MutexLock lock(mutex);
+
     if (!queued_shutdown)
     {
         queue_action(new UploaderShutdown());
         queued_shutdown = true;
     }
-
-    join();
 }
 
 void *UploaderThread::run()

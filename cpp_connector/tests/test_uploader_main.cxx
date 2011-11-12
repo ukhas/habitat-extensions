@@ -180,6 +180,7 @@ int main(int argc, char **argv)
 
 #ifdef THREADED
     thread.shutdown();
+    thread.join();
 #endif
 
     return 0;
