@@ -1,7 +1,7 @@
 /* Copyright 2011 (C) Daniel Richman. License: GNU GPL 3; see COPYING. */
 
 #include "UKHASExtractor.h"
-#include <json/json.h>
+#include <jsoncpp/json.h>
 #include <stdexcept>
 #include <string>
 #include <sstream>

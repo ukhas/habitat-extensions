@@ -38,7 +38,7 @@ public:
 #include <iostream>
 #include <string>
 #include <algorithm>
-#include <json/json.h>
+#include <jsoncpp/json.h>
 
 namespace habitat {
 

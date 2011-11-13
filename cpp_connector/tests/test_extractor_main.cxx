@@ -2,7 +2,7 @@
 
 #include <iostream>
 #include <stdexcept>
-#include <json/json.h>
+#include <jsoncpp/json.h>
 #include <memory>
 
 #include "Extractor.h"
