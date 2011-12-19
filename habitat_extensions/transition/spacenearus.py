@@ -92,8 +92,8 @@ class SpaceNearUs:
             "alt": "altitude",
             "heading": "heading",
             "speed": "speed",
-            "temp_inside": "temp_int",
-            "seq": "count"
+            "temp_inside": "temperature_internal",
+            "seq": "sentence_id"
         }
 
         if "data" not in doc:
@@ -204,7 +204,8 @@ class SpaceNearUs:
                 except:
                     logger.exception("exception during upload")
                 self.upload_queue.task_done()
-                logger.debug("Queue length now: " + str(self.upload_queue.qsize()))
+                n = str(self.upload_queue.qsize())
+                logger.debug("Queue length now: " + n)
             except:
                 # Absolutely under no circumstance allow the thread to die
                 try:
