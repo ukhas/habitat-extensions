@@ -57,8 +57,8 @@ def get_payloads(couch_uri, couch_db):
     # payload_config will be sorted, newest last. New docs will therefore
     # overwrite:
     for result in results:
-        for payload in result["doc"]["payloads"]:
-            payloads[payload] = result["doc"]["payloads"][payload]
+        payload = result["key"][0]
+        payloads[payload] = result["doc"]["payloads"][payload]
     return payloads
 
 class PayloadsXML(object):
