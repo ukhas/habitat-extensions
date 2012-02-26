@@ -55,6 +55,7 @@ def hello():
     <p>
       String: <input type="text" name="string">
       <select name="string_type">
+        <option>ascii-stripped</option>
         <option>ascii</option>
         <option>base64</option>
       </select>
@@ -104,6 +105,8 @@ def payload_telemetry():
 
     if string_type == "base64":
         string = base64.b64decode(string)
+    elif string_type == "ascii-stripped":
+        string += "\n"
 
     assert callsign and string
     assert isinstance(metadata, dict)
