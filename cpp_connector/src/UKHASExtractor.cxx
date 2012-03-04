@@ -31,6 +31,8 @@ void UKHASExtractor::skipped(int n)
 
 void UKHASExtractor::push(char b, enum push_flags flags)
 {
+    if (b == '\r') b = '\n';
+
     if (last == '$' && b == '$')
     {
         /* Start delimiter: "$$" */
