@@ -44,7 +44,7 @@ class Uploader
 
 public:
     Uploader(const string &callsign,
-             const string &couch_uri="http://habhub.org",
+             const string &couch_uri="http://habitat.habhub.org",
              const string &couch_db="habitat",
              int max_merge_attempts=20);
     ~Uploader() {};
