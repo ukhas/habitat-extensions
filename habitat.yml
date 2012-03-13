@@ -22,3 +22,4 @@ autotracker:
         file: /dev/ttyUSB0
         format: simple
         baud: 4800
+    max_age: 300

@@ -17,6 +17,10 @@ class AutoTracker(object):
         self.track_callsign = cfg["track_callsign"]
         self.period = cfg["period"]
         self.old_tgt = None
+        if "max_age" in cfg:
+            self.max_age = cfg["max_age"]
+        else:
+            self.max_age = None
 
         self.couch_server = couchdbkit.Server(config["couch_uri"])
         self.db = self.couch_server[config["couch_db"]]
@@ -33,6 +37,7 @@ class AutoTracker(object):
 
     def open_serial(self, settings):
         self.serial = serial.Serial(settings["file"], settings["baud"])
+        self.serial = open("temp", "a")
         logger.info("Opened serial: {file} {baud}".format(**settings))
 
     def calc_p(self, balloon):
@@ -43,19 +48,16 @@ class AutoTracker(object):
         return p
 
     def wrap_bearing(self, bearing):
-        if bearing < 0:
-            bearing += 360
         return bearing
 
     def wrap_elevation(self, elevation):
         return elevation
 
     def check_range(self, aim):
-        for key in ["bearing", "elevation"]:
+        for key in self.limits:
             limits = self.limits[key]
             if aim[key] < limits["min"] or aim[key] > limits["max"]:
-                return False
-        return True
+                raise ValueError("Out of range: {0} {1}".format(key, aim[key]))
 
     def get_position(self):
         r = self.db.view("habitat/payload_telemetry",
@@ -68,8 +70,9 @@ class AutoTracker(object):
         r = r[0]
 
         t = r["key"][1]
-        if abs(time.time() - t) > 300:
-            raise ValueError("Position is more than 5 minutes old")
+        if self.max_age is not None:
+            if abs(time.time() - t) > self.max_age:
+                raise ValueError("Position is more too old (max_age)")
 
         d = r["doc"]["data"]
         balloon = (d["latitude"], d["longitude"], d["altitude"])

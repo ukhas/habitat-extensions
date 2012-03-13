@@ -1,6 +1,6 @@
 # Copyright 2012 (C) Daniel Richman; GNU GPL 3
 
-from math import radians, degrees, sin, cos, atan2, sqrt
+from math import radians, degrees, sin, cos, atan2, sqrt, pi
 
 def position_info(listener, balloon):
     """
@@ -63,6 +63,10 @@ def position_info(listener, balloon):
 
     # Use cosine rule to find unknown side.
     distance = sqrt((ta ** 2) + (tb ** 2) - 2 * tb * ta * cos(angle_at_centre))
+
+    # Give a bearing in range 0 <= b < 2pi
+    if bearing < 0:
+        bearing += 2 * pi
 
     return {
         "listener": listener, "balloon": balloon,
