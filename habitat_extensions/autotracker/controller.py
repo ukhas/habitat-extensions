@@ -15,6 +15,7 @@ class AutoTracker(object):
         loc = cfg["location"]
         self.listener = (loc["latitude"], loc["longitude"], loc["altitude"])
         self.track_callsign = cfg["track_callsign"]
+        self.period = cfg["period"]
         self.old_tgt = None
 
         self.couch_server = couchdbkit.Server(config["couch_uri"])
@@ -107,4 +108,4 @@ class AutoTracker(object):
             except:
                 logger.exception("Exception in main loop")
 
-            time.sleep(1)
+            time.sleep(self.period)
