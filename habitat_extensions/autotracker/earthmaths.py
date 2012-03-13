@@ -1,3 +1,5 @@
+# Copyright 2012 (C) Daniel Richman; GNU GPL 3
+
 from math import radians, degrees, sin, cos, atan2, sqrt
 
 def position_info(listener, balloon):
