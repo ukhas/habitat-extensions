@@ -160,7 +160,9 @@ class SpaceNearUs:
         fields = {
             "vehicle": "callsign",
             "lat": "latitude",
-            "lon": "longitude"
+            "lon": "longitude",
+            "alt": "altitude",
+            "speed": "speed"
         }
 
         if "data" not in doc:
@@ -185,7 +187,7 @@ class SpaceNearUs:
         self._copy_fields(fields, data, params)
 
         try:
-            timestr = "{hour:02d}:{minute:02d}:{second:02d}"
+            timestr = "{hour:02d}{minute:02d}{second:02d}"
             params["time"] = timestr.format(**data["time"])
         except KeyError:
             pass
