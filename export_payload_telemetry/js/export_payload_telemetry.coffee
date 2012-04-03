@@ -2,7 +2,7 @@ db = $.couch.db("habitat")
 
 show_telem = (data) ->
     for row in data.rows
-        $('#output').append(row['doc']['data']['_raw'])
+        $('#output').append $.base64.decode row['doc']['data']['_raw']
 
 load_telem = (callsign) ->
     db.view "habitat/payload_telemetry", {
