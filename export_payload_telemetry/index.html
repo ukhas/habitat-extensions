@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<title>Export Payload Telemetry</title>
+
+<!-- styles -->
+<link type="text/css" rel="stylesheet"
+    href="https://fonts.googleapis.com/css?family=Droid+Sans|Droid+Sans+Mono|Droid+Serif" />
+<link type="text/css" rel="stylesheet"
+    href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.18/themes/smoothness/jquery-ui.css" />
+<link type="text/css" rel="stylesheet"
+    href="css/export_payload_telemetry.css" />
+
+<div id="container">
+    <h1>Export Payload Telemetry</h1>
+    <div id="description-area">This is a quick web page to export the raw sentences
+        transmitted by a given payload callsign (optionally, between two date
+        ranges) in an easy to copy format. Expect something a lot better and
+        faster to come at some point in the future, but for now, enjoy this!
+    </div>
+    <div id="input-area">
+        <form id="input">
+            <label for="callsign">Payload Callsign:</label>
+            <input id="callsign" size=10 /> 
+            <label for="start">Start:</label>
+            <input id="start" class="datepicker" size=10 /> 
+            <label for="end">End:</label>
+            <input id="end" class="datepicker" size=10 /> 
+            <input type="submit" id="submit" value="Load" />
+        </form>
+    </div>
+    <div id="helptext">
+        Callsign is case sensitive. Leave the start and end fields blank to
+        include all data from the specified callsign.
+    </div>
+    <div id="output-area">
+        <textarea id="output"></textarea>
+    </div>
+
+</div>
+
+<!-- scripts -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.18/jquery-ui.js"></script>
+<script src="js/json2.min.js"></script>
+<script src="js/jquery.base64.min.js"></script>
+<script src="js/jquery.couch.min.js"></script>
+<script type="text/coffeescript" src="js/export_payload_telemetry.coffee"></script>
+<script src="js/coffee-script.js"></script>
