@@ -2,8 +2,10 @@ db = $.couch.db("habitat")
 
 show_telem = (data) ->
     $('#output').html ""
+    out = ""
     for row in data.rows
-        $('#output').append $.base64.decode row['doc']['data']['_raw']
+        out += $.base64.decode row['doc']['data']['_raw']
+    $('#output').html out
 
 load_telem = ->
     $('#output').html "Loading (may take some time)..."
