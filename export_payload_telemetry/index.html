@@ -5,7 +5,7 @@
 <link type="text/css" rel="stylesheet"
     href="https://fonts.googleapis.com/css?family=Droid+Sans|Droid+Sans+Mono|Droid+Serif" />
 <link type="text/css" rel="stylesheet"
-    href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.18/themes/sunny/jquery-ui.css" />
+    href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.18/themes/smoothness/jquery-ui.css" />
 <link type="text/css" rel="stylesheet"
     href="css/export_payload_telemetry.css" />
 
@@ -13,15 +13,23 @@
     <h1>Export Payload Telemetry</h1>
     <div id="description-area">This is a quick web page to export the raw sentences
         transmitted by a given payload callsign (optionally, between two date
-        ranges) in an easy to copy format. Expect something better to come at
-        some point in the future, but for now, enjoy this!
+        ranges) in an easy to copy format. Expect something a lot better and
+        faster to come at some point in the future, but for now, enjoy this!
     </div>
     <div id="input-area">
         <form id="input">
             <label for="callsign">Payload Callsign:</label>
-            <input id="callsign" name="callsign" width=30 />
+            <input id="callsign" size=10 /> 
+            <label for="start">Start:</label>
+            <input id="start" class="datepicker" size=10 /> 
+            <label for="end">End:</label>
+            <input id="end" class="datepicker" size=10 /> 
             <input type="submit" id="submit" value="Load" />
         </form>
+    </div>
+    <div id="helptext">
+        Leave the start and end fields blank to include all data from the
+        specified callsign.
     </div>
     <div id="output-area">
         <textarea id="output"></textarea>

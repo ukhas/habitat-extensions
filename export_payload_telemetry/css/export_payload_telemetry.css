@@ -25,6 +25,10 @@ div {
     border-radius: 10px;
 }
 
+#helptext {
+    font-size: 0.7em;
+}
+
 #output {
     width: 100%;
     height: 400px;
