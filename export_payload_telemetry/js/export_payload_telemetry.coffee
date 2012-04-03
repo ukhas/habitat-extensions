@@ -19,7 +19,7 @@ load_telem = ->
 
     if end
         end = new Date(end)
-        end = end.getTime() / 1000
+        end = (end.getTime() / 1000) + 86400
     else
         end = "end"
 
