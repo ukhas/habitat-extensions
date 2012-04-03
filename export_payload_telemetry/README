@@ -1,0 +1,6 @@
+Allow easy access to payload telemetry while better methods are still being
+developed.
+
+Base64 decoding by https://github.com/carlo/jquery-base64
+
+Adam Greig, April 2012
