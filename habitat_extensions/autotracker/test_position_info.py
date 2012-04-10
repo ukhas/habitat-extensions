@@ -1,5 +1,5 @@
 import math
-from . import position_info
+from earthmaths import position_info
 
 class TestPositionInfo(object):
     def equal_sf(self, a, b, sf=3):

@@ -1,6 +1,25 @@
-couch_uri: "http://localhost:5984"
+couch_uri: "http://habitat.habhub.org/"
 couch_db: habitat
 log_stderr_level: DEBUG
 log_file_level: NONE
 spacenearus:
     tracker: "http://habhub.org/tracker/track.php?{0}"
+autotracker:
+    period: 60
+    location:
+        longitude: -0.7890
+        latitude: 51.1234
+        altitude: 80
+    limits:
+        bearing:
+            min: 0
+            max: 360
+        elevation:
+            min: -3
+            max: 60
+    track_callsign: A1
+    serial:
+        file: /dev/ttyUSB0
+        format: simple
+        baud: 4800
+    max_age: 300
