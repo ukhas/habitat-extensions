@@ -1,4 +1,4 @@
-# habitat_extensions
+# habitat-extensions
 
 This repository contains python modules which are loaded as extentions to
 [habitat](http://github.com/ukhas/habitat). They're looked after by UKHAS
