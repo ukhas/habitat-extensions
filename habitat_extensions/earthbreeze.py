@@ -7,7 +7,7 @@ Temperature sensor for EarthBreeze
 __all__ = ["temperature"]
 
 def temperature(config, data):
-    if len(data) > 2:
+    if len(data) <= 2:
         raise ValueError("Value too short")
 
     prefix = data[0]
