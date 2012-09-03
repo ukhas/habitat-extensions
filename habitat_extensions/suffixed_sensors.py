@@ -19,8 +19,17 @@ def _suffixify(config, data):
 
 def ascii_int(config, data):
     data = _suffixify(config, data)
+
+    if config.get("optional", False) and data == '':
+        return None
     return int(data)
 
 def ascii_float(config, data):
     data = _suffixify(config, data)
-    return float(data)
+
+    if config.get("optional", False) and data == '':
+        return None
+    val = float(data)
+    if math.isnan(val) or math.isinf(val):
+        raise ValueError("Cannot accept nan, inf or -inf")
+    return val
