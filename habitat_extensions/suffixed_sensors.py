@@ -4,6 +4,8 @@
 Sensor functions for ints and floats that have a suffix on the end.
 """
 
+import math
+
 __all__ = ["ascii_int", "ascii_float"]
 
 def _suffixify(config, data):
@@ -18,17 +20,19 @@ def _suffixify(config, data):
     return data[:-1]
 
 def ascii_int(config, data):
-    data = _suffixify(config, data)
-
     if config.get("optional", False) and data == '':
         return None
+
+    data = _suffixify(config, data)
+
     return int(data)
 
 def ascii_float(config, data):
-    data = _suffixify(config, data)
-
     if config.get("optional", False) and data == '':
         return None
+
+    data = _suffixify(config, data)
+
     val = float(data)
     if math.isnan(val) or math.isinf(val):
         raise ValueError("Cannot accept nan, inf or -inf")
